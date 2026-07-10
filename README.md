@@ -223,4 +223,4 @@ Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for dev se
 
 ## License
 
-[MIT](LICENSE) © 2026 Anton Barbarich
+[MIT](LICENSE) © 2026 freewaretools
