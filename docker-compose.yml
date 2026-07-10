@@ -11,6 +11,9 @@ services:
       DATA_DIR: /data
       DEMO: "${DEMO:-0}"
       PROXVIEW_SECRET_KEY: "${PROXVIEW_SECRET_KEY:-}"
+      # Optional: auto-provision the admin on first boot (skips the setup token).
+      PROXVIEW_ADMIN_USER: "${PROXVIEW_ADMIN_USER:-}"
+      PROXVIEW_ADMIN_PASSWORD: "${PROXVIEW_ADMIN_PASSWORD:-}"
     volumes:
       - ./data:/data
     # Published on localhost only by default. On a VPS/remote host, reach it over a

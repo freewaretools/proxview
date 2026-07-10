@@ -26,6 +26,8 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"      # where CT templates live
 UNPRIVILEGED="${UNPRIVILEGED:-1}"
 PROXVIEW_IMAGE="${PROXVIEW_IMAGE:-ghcr.io/abarbarich/proxview:latest}"
 PROXVIEW_PORT="${PROXVIEW_PORT:-8080}"
+PROXVIEW_USER="${PROXVIEW_USER:-admin}"
+PROXVIEW_PASSWORD="${PROXVIEW_PASSWORD:-}"         # blank = auto-generate a strong one
 
 # ---- pretty logging --------------------------------------------------------
 B=$'\033[1m'; G=$'\033[1;32m'; Y=$'\033[1;33m'; R=$'\033[1;31m'; C=$'\033[1;36m'; N=$'\033[0m'
@@ -47,6 +49,12 @@ if [ "$NET" != "dhcp" ] && [ -z "$GATEWAY" ]; then
   die "Static NET ($NET) requires GATEWAY=<router ip>."
 fi
 
+GENERATED_PW=""
+if [ -z "$PROXVIEW_PASSWORD" ]; then
+  PROXVIEW_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)"
+  GENERATED_PW=1
+fi
+
 echo
 echo "${B}ProxView LXC deploy${N}"
 echo "  CTID .......... $CTID"
@@ -56,6 +64,7 @@ echo "  Network ....... ${NET} on ${BRIDGE}${GATEWAY:+ (gw $GATEWAY)}"
 echo "  Storage ....... rootfs=${STORAGE} · templates=${TEMPLATE_STORAGE}"
 echo "  Image ......... ${PROXVIEW_IMAGE}"
 echo "  Unprivileged .. $([ "$UNPRIVILEGED" = 1 ] && echo yes || echo no)"
+echo "  Admin ......... ${PROXVIEW_USER} (password $([ -n "$GENERATED_PW" ] && echo auto-generated || echo preset) — shown at the end)"
 echo
 info "Starting in 5s — Ctrl-C to abort…"; sleep 5
 
@@ -105,6 +114,9 @@ ok "Container up at $CT_IP"
 
 # ---- 3. install Docker + run ProxView (inside the CT) ----------------------
 info "Installing Docker inside the container (this takes a minute)…"
+# base64 the admin creds so any characters survive the substitution + shell quoting.
+USER_B64="$(printf %s "$PROXVIEW_USER" | base64 | tr -d '\n')"
+PASS_B64="$(printf %s "$PROXVIEW_PASSWORD" | base64 | tr -d '\n')"
 INNER=$(cat <<'EOF'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -116,11 +128,16 @@ fi
 systemctl enable --now docker >/dev/null 2>&1
 docker rm -f proxview >/dev/null 2>&1 || true
 docker run -d --name proxview --restart unless-stopped \
-  -p __PORT__:8080 -v proxview-data:/data __IMAGE__ >/dev/null
+  -p __PORT__:8080 -v proxview-data:/data \
+  -e PROXVIEW_ADMIN_USER="$(printf %s __USERB64__ | base64 -d)" \
+  -e PROXVIEW_ADMIN_PASSWORD="$(printf %s __PASSB64__ | base64 -d)" \
+  __IMAGE__ >/dev/null
 EOF
 )
 INNER="${INNER//__PORT__/$PROXVIEW_PORT}"
 INNER="${INNER//__IMAGE__/$PROXVIEW_IMAGE}"
+INNER="${INNER//__USERB64__/$USER_B64}"
+INNER="${INNER//__PASSB64__/$PASS_B64}"
 pct exec "$CTID" -- bash -c "$INNER"
 ok "ProxView container running."
 
@@ -129,14 +146,22 @@ info "Waiting for ProxView to come up…"
 pct exec "$CTID" -- bash -c \
   "for i in \$(seq 1 40); do curl -sf http://127.0.0.1:${PROXVIEW_PORT}/api/health >/dev/null && exit 0; sleep 1; done; exit 1" \
   || warn "Health check timed out — it may still be starting."
-TOKEN="$(pct exec "$CTID" -- bash -c "docker logs proxview 2>&1 | grep -oE 'token=[A-Za-z0-9_-]+' | tail -1" || true)"
 
 # ---- done ------------------------------------------------------------------
 echo
 ok "${B}ProxView is deployed!${N}"
 echo
-echo "  Open:  ${C}http://${CT_IP}:${PROXVIEW_PORT}/${TOKEN:+setup?${TOKEN}}${N}"
-[ -n "$TOKEN" ] || echo "  Setup token: run  ${B}pct exec ${CTID} -- docker logs proxview 2>&1 | grep 'setup?token'${N}"
+if pct exec "$CTID" -- bash -c "curl -s http://127.0.0.1:${PROXVIEW_PORT}/api/setup/status" 2>/dev/null | grep -q '"needsSetup":false'; then
+  # Admin was provisioned from the environment — hand over ready-to-use credentials.
+  echo "  Open:   ${C}http://${CT_IP}:${PROXVIEW_PORT}/login${N}"
+  echo "  Login:  ${B}${PROXVIEW_USER}${N}  /  ${B}${PROXVIEW_PASSWORD}${N}"
+  [ -n "$GENERATED_PW" ] && echo "          (auto-generated — change it in Settings → Account)"
+else
+  # Fallback: no/short password given — use the one-time token from the logs.
+  TOKEN="$(pct exec "$CTID" -- bash -c "docker logs proxview 2>&1 | grep -oE 'token=[A-Za-z0-9_-]+' | tail -1" || true)"
+  echo "  Open:   ${C}http://${CT_IP}:${PROXVIEW_PORT}/${TOKEN:+setup?${TOKEN}}${N}"
+  [ -n "$TOKEN" ] || echo "  Token:  run  pct exec ${CTID} -- docker logs proxview 2>&1 | grep 'setup?token'"
+fi
 echo
 echo "  ${B}This is LAN-only.${N} To reach it across networks, open Settings → Remote"
 echo "  access & connectivity and use the Cloudflare Tunnel or Tailscale wizard."

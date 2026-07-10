@@ -7,7 +7,7 @@ import { initDb } from './db/index.js';
 import { initSecretKey } from './crypto/secretbox.js';
 import { registerAuth } from './auth/plugin.js';
 import { purgeExpiredSessions } from './auth/sessions.js';
-import { needsSetup, regenerateSetupToken } from './auth/setup.js';
+import { bootstrapAdminFromEnv, needsSetup, regenerateSetupToken } from './auth/setup.js';
 import { registerSites } from './routes/sites.js';
 import { registerConfig } from './routes/config.js';
 import { registerMonitoring } from './routes/monitoring.js';
@@ -94,22 +94,41 @@ async function main(): Promise<void> {
     error: (msg) => app.log.error(msg),
   });
 
-  // On a fresh install, print a one-time setup link (invalidates on each restart).
+  // On a fresh install, either provision the admin from the environment (scripted
+  // deploys) or print a one-time setup link to the logs.
   if (needsSetup()) {
-    const token = regenerateSetupToken();
-    const show = (): void => {
-      if (needsSetup()) printSetupBanner(token);
-    };
-    // Print just after boot so the link lands after Fastify's own "listening" logs —
-    // i.e. it's the LAST thing on a fresh start. Then keep re-printing it at the tail
-    // every 60s while setup is pending, so `docker logs` always ends with it.
-    setTimeout(show, 250).unref();
-    const reminder = setInterval(() => {
-      if (needsSetup()) printSetupBanner(token);
-      else clearInterval(reminder);
-    }, 60_000);
-    reminder.unref();
+    const admin = await bootstrapAdminFromEnv();
+    if (admin) {
+      printAdminBanner(admin);
+    } else {
+      const token = regenerateSetupToken();
+      const show = (): void => {
+        if (needsSetup()) printSetupBanner(token);
+      };
+      // Print just after boot so the link lands after Fastify's own "listening" logs —
+      // i.e. it's the LAST thing on a fresh start. Then keep re-printing it at the tail
+      // every 60s while setup is pending, so `docker logs` always ends with it.
+      setTimeout(show, 250).unref();
+      const reminder = setInterval(() => {
+        if (needsSetup()) printSetupBanner(token);
+        else clearInterval(reminder);
+      }, 60_000);
+      reminder.unref();
+    }
   }
+}
+
+function printAdminBanner(username: string): void {
+  const url = `http://localhost:${env.port}/login`;
+  const line = '─'.repeat(46);
+  console.log(
+    `\n┌${line}┐\n` +
+      `  ProxView admin '${username}' created from the environment.\n` +
+      `  Log in with your PROXVIEW_ADMIN_PASSWORD at:\n\n` +
+      `    ${url}\n\n` +
+      `  (replace localhost with your server's host/IP if remote)\n` +
+      `└${line}┘\n`,
+  );
 }
 
 function printSetupBanner(token: string): void {

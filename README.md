@@ -79,9 +79,13 @@ DEMO=1 docker compose up -d --build
 
 ## Deploy as a Proxmox LXC (one command)
 
-Already running Proxmox? Give ProxView its own **Debian 12 LXC**. The script creates the
-container, installs Docker, runs ProxView, and prints the URL + one-time setup token. Run
-it **on a Proxmox VE host** as root:
+> An optional convenience path, not the recommended one — Docker Compose / the image above
+> is the primary way to run ProxView. This spins up a **Debian 12 LXC and runs the Docker
+> image inside it** (nesting enabled), which some prefer to avoid on principle. It's simply
+> the fastest way from zero to a running dashboard on a box you already have.
+
+Run it **on a Proxmox VE host** as root — it creates the container, installs Docker, runs
+ProxView, provisions the admin, and prints a **ready-to-use URL + login** (no token dance):
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/abarbarich/proxview/main/proxmox/proxview-lxc.sh)"
@@ -96,9 +100,11 @@ CTID=131 STORAGE=local-zfs RAM_MB=2048 \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/abarbarich/proxview/main/proxmox/proxview-lxc.sh)"
 ```
 
-The container is **LAN-only** — reach it across networks with the in-app Cloudflare/Tailscale
-wizards. (Tunables: `CTID`, `CT_HOSTNAME`, `CORES`, `RAM_MB`, `DISK_GB`, `BRIDGE`, `NET`,
-`GATEWAY`, `STORAGE`, `PROXVIEW_PORT`, `PROXVIEW_IMAGE`.)
+By default it auto-generates a strong admin password (set `PROXVIEW_USER` / `PROXVIEW_PASSWORD`
+to choose your own). The container is **LAN-only** — reach it across networks with the in-app
+Cloudflare/Tailscale wizards. (Tunables: `CTID`, `CT_HOSTNAME`, `CORES`, `RAM_MB`, `DISK_GB`,
+`BRIDGE`, `NET`, `GATEWAY`, `STORAGE`, `PROXVIEW_PORT`, `PROXVIEW_IMAGE`, `PROXVIEW_USER`,
+`PROXVIEW_PASSWORD`.)
 
 ## Adding a Proxmox VE site
 
@@ -176,6 +182,7 @@ are still here: set `CF_TUNNEL_TOKEN` / `TS_AUTHKEY` in `.env` and use
 | `BIND_ADDR` | `127.0.0.1` | Host interface to publish on. On a VPS, set to your WireGuard/Tailscale IP (e.g. `10.0.0.7`) — never `0.0.0.0` on a public box |
 | `DEMO` | `0` | `1` serves synthetic data |
 | `PROXVIEW_SECRET_KEY` | auto | 32-byte hex key for credential encryption |
+| `PROXVIEW_ADMIN_USER` / `PROXVIEW_ADMIN_PASSWORD` | — | Auto-provision the admin on first boot (skips the setup token). Handy for scripted deploys |
 | `POLL_INTERVAL_MS` | `10000` | PVE/PBS poll cadence |
 | `TEMP_INTERVAL_MS` | `45000` | SSH temperature poll cadence |
 | `RETENTION_DAYS` | `30` | Time-series retention |
