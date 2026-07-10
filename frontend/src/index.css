@@ -106,9 +106,13 @@ a {
   display: grid;
   place-items: center;
   padding: 24px;
+  position: relative;
+  overflow: hidden;
 }
 
 .card {
+  position: relative;
+  z-index: 1;
   width: min(520px, 100%);
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border);

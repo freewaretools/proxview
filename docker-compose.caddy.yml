@@ -1,0 +1,32 @@
+# Optional: serve ProxView on a friendly LAN URL with no port number, via Caddy.
+#
+#   PROXVIEW_HOSTNAME=proxview.home \
+#     docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+#
+# Then browse http://proxview.home (plain, no cert) or https://proxview.home (Caddy's
+# internal CA — import its root cert to silence the warning). You still need name
+# resolution: mDNS handles *.local automatically on macOS/Windows; for other names add
+# an A record in your router / Pi-hole / AdGuard, or a hosts entry, pointing at this host.
+#
+# LAN-only by intent — Caddy binds the LAN here. On a public VPS, set CADDY_BIND to a
+# private/tunnel IP instead of 0.0.0.0.
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: proxview-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      PROXVIEW_HOSTNAME: "${PROXVIEW_HOSTNAME:-proxview.home}"
+    ports:
+      - "${CADDY_BIND:-0.0.0.0}:80:80"
+      - "${CADDY_BIND:-0.0.0.0}:443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { BrandMark } from './BrandMark';
+import { LoginEmojiBackground } from './LoginEmojiBackground';
 
 interface Props {
   title: string;
@@ -10,6 +11,7 @@ interface Props {
 export function AuthCard({ title, subtitle, children }: Props) {
   return (
     <div className="landing">
+      <LoginEmojiBackground />
       <div className="card">
         <div className="brand">
           <BrandMark />

@@ -1,0 +1,21 @@
+# ProxView reverse proxy — serves the dashboard on :80 / :443 (no port in the URL),
+# with automatic HTTPS. Caddy reaches the app over the compose network (app:8080).
+{
+	# Use Caddy's INTERNAL CA so HTTPS works on private names (.home / .local / .lan)
+	# with no public domain or Let's Encrypt. Import Caddy's root cert on your devices
+	# to make it trusted, or just use the plain-HTTP :80 endpoint below.
+	# For a real public domain, delete this line — Caddy will fetch a trusted ACME cert.
+	local_certs
+	# Don't force http→https, so the no-cert :80 endpoint keeps working.
+	auto_https disable_redirects
+}
+
+# HTTPS on your chosen hostname (internal CA).
+{$PROXVIEW_HOSTNAME:proxview.home} {
+	reverse_proxy app:8080
+}
+
+# Plain HTTP on port 80 for any host/IP — works with no cert import and no port number.
+:80 {
+	reverse_proxy app:8080
+}

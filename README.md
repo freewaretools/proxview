@@ -156,6 +156,27 @@ ProxView applies it in-app. No `.env` edits, no compose commands.
 Both `cloudflared` and `tailscaled` ship inside the image and run in userspace — no extra
 container privileges. Tokens are stored AES-256-GCM encrypted alongside your site creds.
 
+### Serve on a friendly LAN URL, no port (Caddy)
+
+Prefer `http://proxview.home` over `http://192.168.1.50:8080`? An optional Caddy reverse
+proxy serves ProxView on `:80` / `:443` with automatic HTTPS (Caddy's internal CA, so no
+public domain needed):
+
+```bash
+PROXVIEW_HOSTNAME=proxview.home \
+  docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+Caddy handles the **port and the cert**; you still need **name resolution** (the app can't
+invent DNS):
+
+- **`.local` names** resolve automatically via mDNS on macOS/Windows — no setup.
+- **Other names** (`.home`, `.lan`, …) need an **A record** in your router / Pi-hole /
+  AdGuard, or a `hosts` entry, pointing at the ProxView host.
+
+LAN-only by intent. On a public VPS, prefer the Cloudflare/Tailscale wizards, or set
+`CADDY_BIND` to a private/tunnel IP.
+
 ### Reach nodes across networks (WireGuard)
 
 WireGuard needs kernel-level networking, so it runs as a compose add-on rather than
