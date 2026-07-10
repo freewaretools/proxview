@@ -1980,3 +1980,89 @@ a {
 .auth-hint .cmd {
   margin: 8px 0;
 }
+
+/* --- Alert rules panel -------------------------------------------------- */
+.rule-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 18px 0 8px;
+}
+.rule-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--border);
+}
+.rule-row:first-child {
+  border-top: none;
+}
+.rule-row.off {
+  opacity: 0.55;
+}
+.rule-label {
+  flex: 1;
+  font-size: 13px;
+}
+.rule-thresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rule-thresh input {
+  width: 66px;
+  text-align: right;
+  padding: 5px 8px;
+  background: var(--bg-grid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.rule-thresh input:disabled {
+  opacity: 0.5;
+}
+.rule-unit {
+  font-size: 12px;
+  color: var(--text-faint);
+  min-width: 34px;
+}
+.level-select {
+  padding: 5px 8px;
+  background: var(--bg-grid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 12px;
+}
+.level-select:disabled {
+  opacity: 0.5;
+}
+.delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin-top: 10px;
+}
+@media (max-width: 640px) {
+  .delivery-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.saved-note {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--ok-text);
+  align-self: center;
+}

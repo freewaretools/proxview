@@ -1,5 +1,6 @@
 import { env } from '../config/env.js';
 import { listSshTargets } from '../sites/repo.js';
+import { getAlertConfig } from './alertConfig.js';
 import { fetchNodeTemps } from './sensors.js';
 import { recordSystemWatts, recordTemp, recordWatts } from './timeseries.js';
 import type { NodeTemps } from './types.js';
@@ -12,7 +13,6 @@ interface Reading {
 
 // siteId -> node name -> latest reading
 const cache = new Map<string, Map<string, Reading>>();
-const TEMP_INTERVAL = Number(process.env.TEMP_INTERVAL_MS ?? 45_000);
 let logger: { error: (msg: string) => void } = { error: () => undefined };
 
 export function getNodeTemps(siteId: string, node: string): NodeTemps | undefined {
@@ -63,7 +63,11 @@ async function pollTemps(): Promise<void> {
 export function startTempPoller(log?: { error: (msg: string) => void }): void {
   if (log) logger = log;
   if (env.demo) return; // demo temps/watts are synthetic (see demo.ts)
-  void pollTemps();
-  const timer = setInterval(() => void pollTemps(), TEMP_INTERVAL);
-  timer.unref?.();
+  // setTimeout loop (not setInterval) so cadence changes in Settings take effect live.
+  const loop = async (): Promise<void> => {
+    await pollTemps();
+    const timer = setTimeout(() => void loop(), getAlertConfig().tempsIntervalMs);
+    timer.unref?.();
+  };
+  void loop();
 }

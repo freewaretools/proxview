@@ -1,5 +1,7 @@
 import { env } from '../config/env.js';
 import { listPbsConfigs, listPveConfigs } from '../sites/repo.js';
+import { getAlertConfig } from './alertConfig.js';
+import type { Alert } from './alerts.js';
 import { evaluateAlerts } from './alertNotifier.js';
 import { demoPbsSnapshots, demoSnapshots } from './demo.js';
 import { buildPbsSnapshot } from './pbs.js';
@@ -16,16 +18,20 @@ import {
 import { pruneOld, recordSnapshot } from './timeseries.js';
 import type { PbsSnapshot, SiteSnapshot } from './types.js';
 
-const REAL_INTERVAL = Number(process.env.POLL_INTERVAL_MS ?? 10_000); // PVE live floor ~10s
 const DEMO_INTERVAL = 2_500; // snappier for the demo UI
 
 const snapshots = new Map<string, SiteSnapshot>();
 const pbsSnapshots = new Map<string, PbsSnapshot>();
+let currentAlerts: Alert[] = [];
 let timer: NodeJS.Timeout | undefined;
 let logger: { error: (msg: string) => void } = { error: () => undefined };
 
 export function getSnapshots(): SiteSnapshot[] {
   return [...snapshots.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getAlerts(): Alert[] {
+  return currentAlerts;
 }
 
 export function getPbsSnapshots(): PbsSnapshot[] {
@@ -83,12 +89,15 @@ async function tick(): Promise<void> {
         }),
       ]);
     }
-    // Evaluate alert conditions against the freshly-updated snapshots.
-    evaluateAlerts([...snapshots.values()], [...pbsSnapshots.values()]);
+    // Evaluate alert conditions against the freshly-updated snapshots, then push the
+    // server-computed alert set to the UI (single source of truth for the banner).
+    currentAlerts = evaluateAlerts([...snapshots.values()], [...pbsSnapshots.values()]);
+    broadcast('alerts', currentAlerts);
   } catch (err) {
     logger.error(`poller tick failed: ${(err as Error).message}`);
   } finally {
-    timer = setTimeout(() => void tick(), env.demo ? DEMO_INTERVAL : REAL_INTERVAL);
+    const interval = env.demo ? DEMO_INTERVAL : getAlertConfig().metricsIntervalMs;
+    timer = setTimeout(() => void tick(), interval);
   }
 }
 

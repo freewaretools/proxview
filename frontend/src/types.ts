@@ -1,5 +1,12 @@
 export type SiteKind = 'pve' | 'pbs';
 
+export interface Alert {
+  key: string;
+  level: 'warn' | 'crit';
+  title: string;
+  body: string;
+}
+
 export interface GuestSummary {
   id: string;
   vmid: number;

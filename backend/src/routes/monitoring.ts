@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../config/env.js';
 import { demoSeries } from '../monitoring/demo.js';
-import { getPbsSnapshots, getSnapshots } from '../monitoring/poller.js';
+import { getAlerts, getPbsSnapshots, getSnapshots } from '../monitoring/poller.js';
 import { addClient } from '../monitoring/sse.js';
 import { readSeries, type SeriesPoint } from '../monitoring/timeseries.js';
 
@@ -12,6 +12,7 @@ export async function registerMonitoring(app: FastifyInstance): Promise<void> {
     demo: env.demo,
     sites: getSnapshots(),
     pbs: getPbsSnapshots(),
+    alerts: getAlerts(),
   }));
 
   app.get('/api/metrics', async (req) => {
@@ -49,6 +50,7 @@ export async function registerMonitoring(app: FastifyInstance): Promise<void> {
     for (const snap of getPbsSnapshots()) {
       res.write(`event: pbs\ndata: ${JSON.stringify(snap)}\n\n`);
     }
+    res.write(`event: alerts\ndata: ${JSON.stringify(getAlerts())}\n\n`);
     addClient(res);
   });
 }

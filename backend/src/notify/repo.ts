@@ -1,6 +1,10 @@
 import { decryptSecret, encryptSecret } from '../crypto/secretbox.js';
 import { deleteSetting, getDb, getSetting, setSetting } from '../db/index.js';
-import type { ChannelType } from './types.js';
+import type { ChannelType, NotifyLevel } from './types.js';
+
+function level(v: unknown): NotifyLevel {
+  return v === 'warn' || v === 'crit' ? v : 'info';
+}
 
 interface ChannelRow {
   id: number;
@@ -8,6 +12,7 @@ interface ChannelRow {
   name: string;
   enabled: number;
   config_enc: string;
+  min_level: string;
   created_at: number;
 }
 
@@ -16,6 +21,7 @@ export interface ChannelPublic {
   type: ChannelType;
   name: string;
   enabled: boolean;
+  minLevel: NotifyLevel;
   summary: string;
 }
 
@@ -24,6 +30,7 @@ export interface DecryptedChannel {
   type: ChannelType;
   name: string;
   enabled: boolean;
+  minLevel: NotifyLevel;
   config: Record<string, unknown>;
 }
 
@@ -46,6 +53,7 @@ function decode(row: ChannelRow): DecryptedChannel {
     type: row.type,
     name: row.name,
     enabled: row.enabled === 1,
+    minLevel: level(row.min_level),
     config: JSON.parse(decryptSecret(row.config_enc)) as Record<string, unknown>,
   };
 }
@@ -59,6 +67,7 @@ export function listChannels(): ChannelPublic[] {
       type: r.type,
       name: r.name,
       enabled: r.enabled === 1,
+      minLevel: level(r.min_level),
       summary: summarize(r.type, config),
     };
   });
@@ -82,34 +91,37 @@ export function createChannel(
   type: ChannelType,
   name: string,
   config: Record<string, unknown>,
+  minLevel: NotifyLevel = 'info',
 ): ChannelPublic {
   const info = getDb()
     .prepare(
-      'INSERT INTO channels(type, name, enabled, config_enc, created_at) VALUES(?, ?, 1, ?, ?)',
+      'INSERT INTO channels(type, name, enabled, config_enc, min_level, created_at) VALUES(?, ?, 1, ?, ?, ?)',
     )
-    .run(type, name, encryptSecret(JSON.stringify(config)), Date.now());
+    .run(type, name, encryptSecret(JSON.stringify(config)), level(minLevel), Date.now());
   return {
     id: Number(info.lastInsertRowid),
     type,
     name,
     enabled: true,
+    minLevel: level(minLevel),
     summary: summarize(type, config),
   };
 }
 
 export function updateChannel(
   id: number,
-  patch: { name?: string; enabled?: boolean; config?: Record<string, unknown> },
+  patch: { name?: string; enabled?: boolean; minLevel?: NotifyLevel; config?: Record<string, unknown> },
 ): ChannelPublic | undefined {
   const existing = getChannel(id);
   if (!existing) return undefined;
   const name = patch.name ?? existing.name;
   const enabled = patch.enabled ?? existing.enabled;
+  const minLevel = level(patch.minLevel ?? existing.minLevel);
   const config = patch.config ?? existing.config;
   getDb()
-    .prepare('UPDATE channels SET name = ?, enabled = ?, config_enc = ? WHERE id = ?')
-    .run(name, enabled ? 1 : 0, encryptSecret(JSON.stringify(config)), id);
-  return { id, type: existing.type, name, enabled, summary: summarize(existing.type, config) };
+    .prepare('UPDATE channels SET name = ?, enabled = ?, min_level = ?, config_enc = ? WHERE id = ?')
+    .run(name, enabled ? 1 : 0, minLevel, encryptSecret(JSON.stringify(config)), id);
+  return { id, type: existing.type, name, enabled, minLevel, summary: summarize(existing.type, config) };
 }
 
 export function deleteChannel(id: number): boolean {

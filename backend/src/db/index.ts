@@ -74,6 +74,8 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // v4 — per-channel minimum severity ('info' = receive everything, incl. resolved)
+  `ALTER TABLE channels ADD COLUMN min_level TEXT NOT NULL DEFAULT 'info';`,
 ];
 
 export function initDb(): Database.Database {

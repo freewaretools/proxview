@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { getAlertConfig, setAlertConfig } from '../monitoring/alertConfig.js';
 import { dispatch, testChannel } from '../notify/index.js';
 import {
   createChannel,
@@ -31,9 +32,12 @@ function parseConfig(type: ChannelType, config: unknown) {
   return configSchemas[type].safeParse(config ?? {});
 }
 
+const levelSchema = z.enum(['info', 'warn', 'crit']);
+
 const createSchema = z.object({
   type: z.enum(['email', 'telegram', 'slack', 'webpush']),
   name: z.string().trim().min(1).max(80),
+  minLevel: levelSchema.optional(),
   config: z.unknown().optional(),
 });
 
@@ -53,7 +57,12 @@ export async function registerNotify(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_input' });
     const cfg = parseConfig(parsed.data.type, parsed.data.config);
     if (!cfg.success) return reply.code(400).send({ error: 'invalid_config', details: cfg.error.flatten() });
-    const channel = createChannel(parsed.data.type, parsed.data.name, cfg.data as Record<string, unknown>);
+    const channel = createChannel(
+      parsed.data.type,
+      parsed.data.name,
+      cfg.data as Record<string, unknown>,
+      parsed.data.minLevel,
+    );
     const test = await testChannel(parsed.data.type, cfg.data as Record<string, unknown>);
     return { channel, test };
   });
@@ -63,14 +72,25 @@ export async function registerNotify(app: FastifyInstance): Promise<void> {
     if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid_id' });
     const existing = getChannel(id);
     if (!existing) return reply.code(404).send({ error: 'not_found' });
-    const body = req.body as { name?: string; enabled?: boolean; config?: unknown };
+    const body = req.body as {
+      name?: string;
+      enabled?: boolean;
+      minLevel?: unknown;
+      config?: unknown;
+    };
     let config: Record<string, unknown> | undefined;
     if (body.config !== undefined) {
       const cfg = parseConfig(existing.type, body.config);
       if (!cfg.success) return reply.code(400).send({ error: 'invalid_config' });
       config = cfg.data as Record<string, unknown>;
     }
-    const channel = updateChannel(id, { name: body.name, enabled: body.enabled, config });
+    const minLevel = levelSchema.safeParse(body.minLevel);
+    const channel = updateChannel(id, {
+      name: body.name,
+      enabled: body.enabled,
+      minLevel: minLevel.success ? minLevel.data : undefined,
+      config,
+    });
     return { channel };
   });
 
@@ -96,6 +116,17 @@ export async function registerNotify(app: FastifyInstance): Promise<void> {
       level: 'warn',
     });
     return { ok: true };
+  });
+
+  // --- alert rules (thresholds, severity, delivery, polling) ---
+  app.get('/api/alerts', async () => getAlertConfig());
+
+  app.put('/api/alerts', async (req, reply) => {
+    if (typeof req.body !== 'object' || req.body === null) {
+      return reply.code(400).send({ error: 'invalid_input' });
+    }
+    // setAlertConfig normalizes/clamps every field, so partial or unknown input is safe.
+    return setAlertConfig(req.body as Parameters<typeof setAlertConfig>[0]);
   });
 
   // --- web push ---

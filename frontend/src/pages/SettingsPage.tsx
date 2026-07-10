@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AccountPanel } from '../components/AccountPanel';
+import { AlertRulesPanel } from '../components/AlertRulesPanel';
 import { ColumnSelect } from '../components/ColumnSelect';
 import { ConnectivityPanel } from '../components/ConnectivityPanel';
 import { NotificationsPanel } from '../components/NotificationsPanel';
@@ -115,6 +116,8 @@ export default function SettingsPage() {
       </section>
 
       <NotificationsPanel />
+
+      <AlertRulesPanel />
 
       <AccountPanel />
 

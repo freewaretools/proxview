@@ -13,7 +13,7 @@ const TYPE_LABELS: Record<ChannelType, string> = {
 type Cfg = Record<string, string | boolean>;
 
 export function NotificationsPanel() {
-  const { channels, loaded, load, test, create, toggle, remove } = useNotify();
+  const { channels, loaded, load, test, create, toggle, setMinLevel, remove } = useNotify();
   const [type, setType] = useState<ChannelType>('telegram');
   const [name, setName] = useState('');
   const [cfg, setCfg] = useState<Cfg>({});
@@ -127,6 +127,16 @@ export function NotificationsPanel() {
                 <div className="site-row-url">{c.summary}</div>
               </div>
               <div className="site-row-actions">
+                <select
+                  className="level-select"
+                  value={c.minLevel}
+                  title="Which alerts this channel receives"
+                  onChange={(e) => void setMinLevel(c.id, e.target.value as typeof c.minLevel)}
+                >
+                  <option value="info">All alerts</option>
+                  <option value="warn">Warnings &amp; critical</option>
+                  <option value="crit">Critical only</option>
+                </select>
                 <label className="switch" title={c.enabled ? 'Enabled' : 'Disabled'}>
                   <input
                     type="checkbox"

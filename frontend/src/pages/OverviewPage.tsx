@@ -17,6 +17,7 @@ export default function OverviewPage() {
   const loaded = useLive((s) => s.loaded);
   const sitesMap = useLive((s) => s.sites);
   const pbsMap = useLive((s) => s.pbs);
+  const alerts = useLive((s) => s.alerts);
   const columns = useUi((s) => s.columns);
 
   const sites = Object.values(sitesMap);
@@ -46,7 +47,7 @@ export default function OverviewPage() {
 
   return (
     <div className="overview">
-      <OverviewSummary sites={sites} pbs={pbsSites} />
+      <OverviewSummary alerts={alerts} />
 
       {(machines.length > 0 || pbsSites.length > 0) && (
         <div className="machine-grid" style={{ '--cols': String(columns) } as CSSProperties}>

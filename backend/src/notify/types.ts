@@ -1,9 +1,11 @@
 export type ChannelType = 'email' | 'telegram' | 'slack' | 'webpush';
 
+export type NotifyLevel = 'info' | 'warn' | 'crit';
+
 export interface NotifyMessage {
   title: string;
   body: string;
-  level: 'info' | 'warn' | 'crit';
+  level: NotifyLevel;
 }
 
 export interface EmailConfig {
