@@ -45,6 +45,11 @@ homelabbers who want a simple public URL anyway, a guided **Cloudflare Tunnel** 
 included — if you use it, gate the hostname with **Cloudflare Access** so the dashboard is
 never left open to the world.
 
+> **Running on a VPS reached over WireGuard/Tailscale?** Publish the port on the *tunnel*
+> interface, not loopback or `0.0.0.0`. With compose, set `BIND_ADDR` to the host's tunnel
+> IP (e.g. `BIND_ADDR=10.0.0.7`); with plain `docker run`, use `-p 10.0.0.7:8080:8080`. It's
+> then reachable through the tunnel and refused on the public interface.
+
 ## Quick start (Docker)
 
 ```bash
@@ -144,7 +149,8 @@ are still here: set `CF_TUNNEL_TOKEN` / `TS_AUTHKEY` in `.env` and use
 
 | Env | Default | Purpose |
 |-----|---------|---------|
-| `PORT` | `8080` | Host port (bound to 127.0.0.1) |
+| `PORT` | `8080` | Host port the dashboard is published on |
+| `BIND_ADDR` | `127.0.0.1` | Host interface to publish on. On a VPS, set to your WireGuard/Tailscale IP (e.g. `10.0.0.7`) — never `0.0.0.0` on a public box |
 | `DEMO` | `0` | `1` serves synthetic data |
 | `PROXVIEW_SECRET_KEY` | auto | 32-byte hex key for credential encryption |
 | `POLL_INTERVAL_MS` | `10000` | PVE/PBS poll cadence |

@@ -13,9 +13,11 @@ services:
       PROXVIEW_SECRET_KEY: "${PROXVIEW_SECRET_KEY:-}"
     volumes:
       - ./data:/data
-    # Bound to localhost only — expose it deliberately via a plugin below.
+    # Published on localhost only by default. On a VPS/remote host, reach it over a
+    # private tunnel by setting BIND_ADDR to the WireGuard/Tailscale interface IP
+    # (e.g. BIND_ADDR=10.0.0.7) — never 0.0.0.0 on a public box.
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
+      - "${BIND_ADDR:-127.0.0.1}:${PORT:-8080}:8080"
 
   # --- Optional plugin: Cloudflare Tunnel (activate with --profile cloudflare) ---
   cloudflared:
