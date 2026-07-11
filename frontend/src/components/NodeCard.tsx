@@ -16,7 +16,13 @@ interface Props {
 
 export function NodeCard({ node, siteId, siteName }: Props) {
   const offline = node.status === 'offline';
-  const running = node.guests.filter((g) => g.status === 'running').length;
+  const tally = (type: 'qemu' | 'lxc') => {
+    const list = node.guests.filter((g) => g.type === type);
+    const up = list.filter((g) => g.status === 'running').length;
+    return { total: list.length, up, down: list.length - up };
+  };
+  const vm = tally('qemu');
+  const ct = tally('lxc');
 
   return (
     <Link
@@ -68,8 +74,22 @@ export function NodeCard({ node, siteId, siteName }: Props) {
           <div className="node-guests">
             <div className="node-guests-head">
               <span>Guests</span>
-              <span className="muted-inline">
-                {running}/{node.guests.length} running
+              <span className="guest-tally">
+                {vm.total > 0 && (
+                  <span className="tally">
+                    <span className="tally-type">VM</span>
+                    <span className="tally-up">{vm.up}↑</span>
+                    {vm.down > 0 && <span className="tally-down">{vm.down}↓</span>}
+                  </span>
+                )}
+                {ct.total > 0 && (
+                  <span className="tally">
+                    <span className="tally-type">CT</span>
+                    <span className="tally-up">{ct.up}↑</span>
+                    {ct.down > 0 && <span className="tally-down">{ct.down}↓</span>}
+                  </span>
+                )}
+                {node.guests.length === 0 && <span className="muted-inline">none</span>}
               </span>
             </div>
             <div className="guest-list">

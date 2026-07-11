@@ -1286,6 +1286,46 @@ a {
   min-height: 0;
   overflow-y: auto;
 }
+/* Thin, always-visible scrollbar so it's obvious the list scrolls (macOS hides
+   native ones). */
+.guest-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.guest-list::-webkit-scrollbar {
+  width: 7px;
+}
+.guest-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+.guest-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* Per-type guest tally in the card header. */
+.guest-tally {
+  display: flex;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tally {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.tally-type {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.tally-up {
+  color: var(--ok-text);
+}
+.tally-down {
+  color: var(--text-faint);
+}
 .node-card:hover {
   border-color: var(--border-strong);
   background: var(--surface-2);
