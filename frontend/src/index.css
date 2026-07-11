@@ -1286,21 +1286,29 @@ a {
   min-height: 0;
   overflow-y: auto;
 }
-/* Thin, always-visible scrollbar so it's obvious the list scrolls (macOS hides
-   native ones). */
-.guest-list {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+/* Always-visible scrollbar (with a visible track) whenever a list overflows —
+   styling ::-webkit-scrollbar opts out of macOS's auto-hiding overlay bars. */
+/* NB: no `scrollbar-width`/`scrollbar-color` here — setting them makes Chromium use
+   the OS overlay renderer and ignore ::-webkit-scrollbar, which is what forces a
+   classic, always-visible (layout-occupying) bar. */
+.guest-list::-webkit-scrollbar,
+.pbs-card .node-guests::-webkit-scrollbar {
+  width: 10px;
 }
-.guest-list::-webkit-scrollbar {
-  width: 7px;
+.guest-list::-webkit-scrollbar-track,
+.pbs-card .node-guests::-webkit-scrollbar-track {
+  background: var(--surface-2);
+  border-radius: 5px;
 }
-.guest-list::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 4px;
+.guest-list::-webkit-scrollbar-thumb,
+.pbs-card .node-guests::-webkit-scrollbar-thumb {
+  background: var(--text-faint);
+  border-radius: 5px;
+  border: 2px solid var(--surface-2);
 }
-.guest-list::-webkit-scrollbar-track {
-  background: transparent;
+.guest-list::-webkit-scrollbar-thumb:hover,
+.pbs-card .node-guests::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 /* Per-type guest tally in the card header. */
 .guest-tally {
