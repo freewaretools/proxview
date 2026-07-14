@@ -238,18 +238,6 @@ are still here: set `CF_TUNNEL_TOKEN` / `TS_AUTHKEY` in `.env` and use
 | `RETENTION_DAYS` | `30` | Time-series retention |
 | `COOKIE_SECURE` | `0` | Set `1` when always behind HTTPS |
 
-## Roadmap
-
-| # | Milestone | Status |
-|---|-----------|--------|
-| M1 | Scaffold + Docker | ✅ |
-| M2 | First-run auth + DB | ✅ |
-| M3 | PVE provider + live overview | ✅ |
-| M4 | Time-series + history charts | ✅ |
-| M5 | Temperatures via SSH | ✅ |
-| M6 | PBS provider + backup health | ✅ |
-| M7 | Remote-access plugins + polish | ✅ |
-
 ## Security notes
 
 - **Read-only by design.** ProxView never mutates your clusters — give it audit tokens
