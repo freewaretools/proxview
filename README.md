@@ -1,4 +1,9 @@
-# ProxView
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-horizontal-dark.svg">
+    <img src="docs/brand/logo-horizontal-light.svg" alt="ProxView" width="440">
+  </picture>
+</p>
 
 ![CI](https://github.com/freewaretools/proxview/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
@@ -255,3 +260,9 @@ Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for dev se
 ## License
 
 [MIT](LICENSE) © 2026 freewaretools
+
+---
+
+*ProxView is an independent project and is not affiliated with, endorsed by, or sponsored
+by Proxmox Server Solutions GmbH. Proxmox® is a registered trademark of Proxmox Server
+Solutions GmbH.*

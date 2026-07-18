@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ProxView mark">
+  <defs>
+
+  </defs>
+  <path d="M 149.09,155.79 L 131.77,126.43 M 202.15,132.33 L 191.17,95.12 M 256.00,124.40 L 256.00,82.06 M 309.85,132.33 L 320.83,95.12 M 362.91,155.79 L 380.23,126.43" fill="none" stroke="#FFFFFF" stroke-width="25.84" stroke-linecap="round"/>
+  <path d="M 56.00,256.00 Q 256.00,20.00 456.00,256.00 Q 256.00,492.00 56.00,256.00 Z" fill="none" stroke="#FFFFFF" stroke-width="34.00" stroke-linejoin="round" stroke-linecap="round"/>
+  <g transform="translate(256.00,256.00) scale(1.00000)"><path d="M -93.00,-60.00 H 93.00 A 9.00,9.00 0 0 1 102.00,-51.00 V -23.00 A 9.00,9.00 0 0 1 93.00,-14.00 H -93.00 A 9.00,9.00 0 0 1 -102.00,-23.00 V -51.00 A 9.00,9.00 0 0 1 -93.00,-60.00 Z M -93.00,14.00 H 93.00 A 9.00,9.00 0 0 1 102.00,23.00 V 51.00 A 9.00,9.00 0 0 1 93.00,60.00 H -93.00 A 9.00,9.00 0 0 1 -102.00,51.00 V 23.00 A 9.00,9.00 0 0 1 -93.00,14.00 Z" fill="#FFFFFF" fill-rule="evenodd"/></g>
+</svg>

@@ -1,0 +1,78 @@
+:root {
+  /* ---- ProxView design tokens ---------------------------------------- */
+
+  /* Accent */
+  --pv-amber-300: #FFC66E;
+  --pv-amber-400: #FFA742;
+  --pv-amber-500: #FF8A1F;   /* primary brand accent */
+  --pv-amber-600: #E5720A;
+
+  /* Neutrals */
+  --pv-cloud:        #E9EEF5;
+  --pv-slate-200:    #C3CCD8;
+  --pv-slate-400:    #8A97A8;
+  --pv-graphite-600: #2B3440;
+  --pv-graphite-700: #1F2630;
+  --pv-graphite-800: #161B22;
+  --pv-graphite-900: #0E1116;
+
+  /* Node / VM state */
+  --pv-running:  #3FD68C;
+  --pv-warning:  #FFB020;
+  --pv-stopped:  #FF5C5C;
+  --pv-offline:  #6B7688;
+
+  /* Semantic — dark theme (default) */
+  --pv-bg:            var(--pv-graphite-900);
+  --pv-surface:       var(--pv-graphite-800);
+  --pv-surface-raised:var(--pv-graphite-700);
+  --pv-border:        rgba(255, 255, 255, 0.09);
+  --pv-text:          var(--pv-cloud);
+  --pv-text-muted:    var(--pv-slate-400);
+  --pv-accent:        var(--pv-amber-500);
+  --pv-accent-weak:   rgba(255, 138, 31, 0.14);
+  --pv-focus:         var(--pv-amber-400);
+
+  /* Type */
+  --pv-font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+                  "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --pv-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo,
+                  Consolas, monospace;
+
+  /* Radius + elevation */
+  --pv-radius-sm: 6px;
+  --pv-radius-md: 10px;
+  --pv-radius-lg: 16px;
+  --pv-radius-pill: 999px;
+  --pv-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --pv-shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Spacing scale (4px base) */
+  --pv-space-1: 4px;  --pv-space-2: 8px;  --pv-space-3: 12px;
+  --pv-space-4: 16px; --pv-space-5: 24px; --pv-space-6: 32px;
+  --pv-space-7: 48px; --pv-space-8: 64px;
+}
+
+[data-theme="light"] {
+  --pv-bg:             #F6F8FB;
+  --pv-surface:        #FFFFFF;
+  --pv-surface-raised: #FFFFFF;
+  --pv-border:         rgba(14, 17, 22, 0.10);
+  --pv-text:           var(--pv-graphite-900);
+  --pv-text-muted:     #5A6675;
+  --pv-accent:         var(--pv-amber-600);
+  --pv-accent-weak:    rgba(229, 114, 10, 0.10);
+  --pv-focus:          var(--pv-amber-600);
+  --pv-shadow-1: 0 1px 2px rgba(14, 17, 22, 0.08);
+  --pv-shadow-2: 0 8px 24px rgba(14, 17, 22, 0.10);
+}
+
+/* Status dot utility */
+.pv-dot {
+  width: 8px; height: 8px; border-radius: var(--pv-radius-pill);
+  display: inline-block; flex: none;
+}
+.pv-dot--running { background: var(--pv-running); box-shadow: 0 0 0 3px rgba(63,214,140,.16); }
+.pv-dot--warning { background: var(--pv-warning); box-shadow: 0 0 0 3px rgba(255,176,32,.16); }
+.pv-dot--stopped { background: var(--pv-stopped); box-shadow: 0 0 0 3px rgba(255,92,92,.16); }
+.pv-dot--offline { background: var(--pv-offline); }

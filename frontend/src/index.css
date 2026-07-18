@@ -144,14 +144,9 @@ a {
 .brand-mark {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #6f5bff);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #0b0e14;
-  font-size: 20px;
-  box-shadow: 0 4px 16px rgba(76, 141, 255, 0.35);
+  /* Matches the badge SVG's own corner radius (114.53/512) so the glow hugs the plate. */
+  border-radius: 22.4%;
+  box-shadow: 0 4px 16px rgba(255, 138, 31, 0.3);
 }
 
 .brand h1 {
