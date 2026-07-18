@@ -1,6 +1,6 @@
 {
   "name": "proxview",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "Self-hosted, multi-site Proxmox VE + Proxmox Backup Server monitoring dashboard",
   "license": "MIT",
