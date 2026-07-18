@@ -1,12 +1,95 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 
-// Curated homelab / server / monitoring emojis — servers, containers, gauges,
-// power, network — so the soup reads as "datacenter" without leaning on one icon.
-const EMOJIS = [
-  '🖥️', '🗄️', '📦', '🧊', '⚙️', '🔧', '🛠️', '🌡️',
-  '⚡', '🔌', '🔋', '📊', '📈', '🛰️', '📡', '☁️',
-  '🔒', '🐧', '🧰', '💾', '🕸️', '🔥', '❄️', '🖥️',
-] as const;
+// Curated homelab line icons — servers, network, storage, compute — drawn on a
+// 24x24 grid with round caps so the field reads as "datacenter" at any size.
+// Stroked with currentColor; each speck is tinted from the Prox Amber ramp.
+const ICONS: readonly ReactNode[] = [
+  // Server rack — two units, echoing the brand mark's pupil
+  <>
+    <rect x="3" y="4" width="18" height="7" rx="1.5" />
+    <rect x="3" y="13" width="18" height="7" rx="1.5" />
+    <path d="M6.4 7.5h.01M6.4 16.5h.01M15 7.5h3M15 16.5h3" />
+  </>,
+  // Tower server
+  <>
+    <rect x="7" y="3" width="10" height="18" rx="1.5" />
+    <path d="M10 7h4M10 10.5h4M10.5 17h.01" />
+  </>,
+  // Monitor
+  <>
+    <rect x="3" y="4.5" width="18" height="12" rx="1.5" />
+    <path d="M9.5 20.5h5M12 16.5v4" />
+  </>,
+  // Terminal
+  <>
+    <rect x="3" y="4.5" width="18" height="15" rx="1.5" />
+    <path d="M7 9.5l3 2.5-3 2.5M12.5 14.5H17" />
+  </>,
+  // Router with antennas
+  <>
+    <rect x="4" y="13" width="16" height="7" rx="1.5" />
+    <path d="M8 13V6M16 13V8.5M8 16.5h.01M11.5 16.5h.01" />
+  </>,
+  // Wi-Fi
+  <>
+    <path d="M4 9.5a12 12 0 0 1 16 0M7 13a8 8 0 0 1 10 0M9.8 16.2a4 4 0 0 1 4.4 0" />
+    <path d="M12 19.5h.01" />
+  </>,
+  // Network topology — one hub, two leaves
+  <>
+    <circle cx="12" cy="6" r="2.5" />
+    <circle cx="5.5" cy="18" r="2.5" />
+    <circle cx="18.5" cy="18" r="2.5" />
+    <path d="M10.8 8.2 6.8 16M13.2 8.2l4 7.8M8 18h8" />
+  </>,
+  // Ethernet port
+  <>
+    <path d="M5 9h14v10H5zM9 5h6v4M9 19v-2.5M12 19v-2.5M15 19v-2.5" />
+  </>,
+  // Hard drive
+  <>
+    <rect x="3" y="8" width="18" height="8" rx="1.5" />
+    <path d="M17.4 12h.01M6.5 12h4" />
+  </>,
+  // Database cylinder
+  <>
+    <ellipse cx="12" cy="5.5" rx="7" ry="2.5" />
+    <path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" />
+  </>,
+  // CPU chip
+  <>
+    <rect x="7" y="7" width="10" height="10" rx="1.5" />
+    <path d="M10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5" />
+  </>,
+  // Cloud
+  <>
+    <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17.1 8.6 4.2 4.2 0 0 1 16.8 18Z" />
+  </>,
+  // Globe
+  <>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M3.5 12h17M12 3.5c-4.7 4.8-4.7 12.2 0 17M12 3.5c4.7 4.8 4.7 12.2 0 17" />
+  </>,
+  // Gauge
+  <>
+    <path d="M5 17.5a8.5 8.5 0 1 1 14 0" />
+    <path d="M12 14.5 15.5 9M12 14.5h.01" />
+  </>,
+  // Container stack
+  <>
+    <rect x="4" y="12" width="7.5" height="7.5" rx="1" />
+    <rect x="12.5" y="12" width="7.5" height="7.5" rx="1" />
+    <rect x="8.25" y="4" width="7.5" height="7.5" rx="1" />
+  </>,
+  // Power plug
+  <>
+    <path d="M9 3.5V8M15 3.5V8M6.5 8h11l-1 5a4.5 4.5 0 0 1-9 0ZM12 17.5v3" />
+  </>,
+];
+
+// Prox Amber ramp (BRAND.md) — highlight → pressed. Weighted toward the middle
+// so the field reads warm without going muddy or neon.
+const TINTS = ['#FFC66E', '#FFA742', '#FF8A1F', '#FF8A1F', '#E5720A'] as const;
 
 // Deterministic PRNG so positions are stable across renders — no flicker.
 function mulberry32(seed: number) {
@@ -20,7 +103,8 @@ function mulberry32(seed: number) {
 
 interface Speck {
   id: number;
-  emoji: string;
+  iconIdx: number;
+  tint: string;
   left: number;
   top: number;
   size: number;
@@ -50,13 +134,15 @@ function build(count: number, seed: number): Speck[] {
 
     // Larger specks read as nearer atmosphere — fainter, blurrier, parallax further.
     const sizeT = (size - 22) / (124 - 22);
-    const peakOpacity = 0.3 - sizeT * 0.14 + rand() * 0.05;
+    // Line icons carry less ink than emoji glyphs, so they run a touch more opaque.
+    const peakOpacity = 0.36 - sizeT * 0.15 + rand() * 0.06;
     const blur = 0.4 + sizeT * 3.2 + rand() * 1.2;
     const depth = 0.35 + sizeT * 1.4 + (rand() - 0.5) * 0.4;
 
     return {
       id,
-      emoji: EMOJIS[Math.floor(rand() * EMOJIS.length)] ?? '🖥️',
+      iconIdx: Math.floor(rand() * ICONS.length),
+      tint: TINTS[Math.floor(rand() * TINTS.length)] ?? '#FF8A1F',
       left: rand() * 108 - 4,
       top: rand() * 110 - 5,
       size,
@@ -104,7 +190,6 @@ const STYLES = `
 }
 .soup-speck {
   display: block;
-  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   line-height: 1;
   will-change: transform, opacity;
   user-select: none;
@@ -113,6 +198,9 @@ const STYLES = `
   animation:
     var(--soup-drift) var(--soup-drift-dur) ease-in-out var(--soup-drift-delay) infinite alternate,
     soup-breathe var(--soup-fade-dur) ease-in-out var(--soup-fade-delay) infinite;
+}
+.soup-speck svg {
+  display: block;
 }
 @keyframes soup-drift-a {
   0%   { transform: translate3d(0, 0, 0) rotate(var(--soup-rot)); }
@@ -155,10 +243,10 @@ const STYLES = `
 const DRIFT_NAMES = ['soup-drift-a', 'soup-drift-b', 'soup-drift-c', 'soup-drift-d'] as const;
 
 /**
- * Reactive "emoji soup" login backdrop — drifting, breathing homelab emojis
- * that parallax toward the pointer. Ported from the Spectre auth screens.
+ * Reactive login backdrop — drifting, breathing homelab line icons in Prox
+ * Amber that parallax toward the pointer. Successor to the emoji soup.
  */
-export function LoginEmojiBackground({ count = 44, seed = 7 }: { count?: number; seed?: number }) {
+export function LoginIconBackground({ count = 44, seed = 7 }: { count?: number; seed?: number }) {
   const specks = useMemo(() => build(count, seed), [count, seed]);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -251,12 +339,23 @@ export function LoginEmojiBackground({ count = 44, seed = 7 }: { count?: number;
             <span
               className="soup-speck"
               style={{
-                fontSize: `${s.size}px`,
+                color: s.tint,
                 animationDirection: s.reverse ? 'alternate-reverse' : 'alternate',
                 ...speckVars,
               }}
             >
-              {s.emoji}
+              <svg
+                viewBox="0 0 24 24"
+                width={s.size}
+                height={s.size}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {ICONS[s.iconIdx]}
+              </svg>
             </span>
           </span>
         );

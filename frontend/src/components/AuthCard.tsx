@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAuth } from '../store/auth';
 import { BrandMark } from './BrandMark';
-import { LoginEmojiBackground } from './LoginEmojiBackground';
+import { LoginIconBackground } from './LoginIconBackground';
 
 interface Props {
   title: string;
@@ -13,7 +13,7 @@ export function AuthCard({ title, subtitle, children }: Props) {
   const version = useAuth((s) => s.version);
   return (
     <div className="landing">
-      <LoginEmojiBackground />
+      <LoginIconBackground />
       <div className="card">
         <div className="brand">
           <BrandMark />
