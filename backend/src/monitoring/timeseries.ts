@@ -107,6 +107,20 @@ export function recordSystemWatts(siteId: string, node: string, watts: number): 
     .run(nodeSeriesKey(siteId, node, 'syswatts'), Math.floor(Date.now() / 1000), watts);
 }
 
+/** Record a single GPU temperature sample (°C) for the GPU at `idx` on a node. */
+export function recordGpuTemp(siteId: string, node: string, idx: number, celsius: number): void {
+  getDb()
+    .prepare('INSERT INTO timeseries(series_key, ts, value) VALUES(?, ?, ?)')
+    .run(nodeSeriesKey(siteId, node, `gputemp${idx}`), Math.floor(Date.now() / 1000), celsius);
+}
+
+/** Record a single GPU power sample (watts) for the GPU at `idx` on a node. */
+export function recordGpuWatts(siteId: string, node: string, idx: number, watts: number): void {
+  getDb()
+    .prepare('INSERT INTO timeseries(series_key, ts, value) VALUES(?, ?, ?)')
+    .run(nodeSeriesKey(siteId, node, `gpuwatts${idx}`), Math.floor(Date.now() / 1000), watts);
+}
+
 export function pruneOld(): void {
   const cutoff = Math.floor((Date.now() - RETENTION_MS) / 1000);
   getDb().prepare('DELETE FROM timeseries WHERE ts < ?').run(cutoff);

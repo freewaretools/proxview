@@ -4,11 +4,29 @@ import type { NodeTemps } from './types.js';
 
 const { Client, utils } = ssh2;
 
+/** Base64 SSH public key derived from a private key, or '' if it can't be parsed. */
+function derivePublicSsh(privateKey: string): string {
+  try {
+    const parsed = utils.parseKey(privateKey);
+    const key = Array.isArray(parsed) ? parsed[0] : parsed;
+    return key && !(key instanceof Error) ? key.getPublicSSH().toString('base64') : '';
+  } catch {
+    return '';
+  }
+}
+
 export interface ProvisionInput {
   host: string;
   port: number;
   user: string;
   password: string;
+  /**
+   * Private key from a previous provisioning run on this same site, if any. When set,
+   * the matching authorized_keys entry is removed before the new key is installed —
+   * this is what makes "reprovision after a hardware change" idempotent instead of
+   * piling up stale keys on the host each time setup is re-run.
+   */
+  previousPrivateKey?: string;
 }
 
 export interface ProvisionStep {
@@ -38,14 +56,7 @@ export interface UnprovisionTarget {
  */
 export function unprovisionMachine(target: UnprovisionTarget): Promise<ProvisionResult> {
   return new Promise((resolve) => {
-    let pubB64 = '';
-    try {
-      const parsed = utils.parseKey(target.privateKey);
-      const key = Array.isArray(parsed) ? parsed[0] : parsed;
-      if (key && !(key instanceof Error)) pubB64 = key.getPublicSSH().toString('base64');
-    } catch {
-      /* can't derive public key — token removal still runs */
-    }
+    const pubB64 = derivePublicSsh(target.privateKey);
 
     const tokenCmd =
       target.kind === 'pbs'
@@ -312,8 +323,12 @@ export function provisionSensors(input: ProvisionInput): Promise<ProvisionResult
     }
 
     const pub = keys.public.trim();
+    const oldPub = input.previousPrivateKey ? derivePublicSsh(input.previousPrivateKey) : '';
     const script = [
       'mkdir -p ~/.ssh && chmod 700 ~/.ssh',
+      // Reprovisioning: drop the old ProxView-installed key first so re-running setup
+      // (e.g. after a hardware change) doesn't pile up stale authorized_keys entries.
+      ...(oldPub ? [`sed -i '\\|${oldPub}|d' ~/.ssh/authorized_keys 2>/dev/null && echo '===OLDKEYREMOVED==='`] : []),
       `grep -qxF '${pub}' ~/.ssh/authorized_keys 2>/dev/null || echo '${pub}' >> ~/.ssh/authorized_keys`,
       'chmod 600 ~/.ssh/authorized_keys',
       "echo '===KEY==='",
@@ -356,6 +371,14 @@ export function provisionSensors(input: ProvisionInput): Promise<ProvisionResult
               const steps: ProvisionStep[] = [
                 { name: 'Connect', ok: true, detail: `Connected as ${input.user}` },
               ];
+              if (oldPub) {
+                const oldRemoved = out.includes('===OLDKEYREMOVED===');
+                steps.push({
+                  name: 'Remove previous key',
+                  ok: oldRemoved,
+                  detail: oldRemoved ? 'Stale authorized_keys entry cleaned up' : 'Not found (already removed?)',
+                });
+              }
               const keyOk = out.includes('===KEY===');
               steps.push({
                 name: 'Install SSH key',

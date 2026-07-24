@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Gauge } from '../components/Gauge';
 import { GuestRow } from '../components/GuestRow';
@@ -31,9 +31,12 @@ export default function NodeDetailPage() {
   const [temp, setTemp] = useState<ChartPoint[]>([]);
   const [power, setPower] = useState<ChartPoint[]>([]);
   const [sysPower, setSysPower] = useState<ChartPoint[]>([]);
+  const [gpuTemps, setGpuTemps] = useState<ChartPoint[][]>([]);
+  const [gpuPowers, setGpuPowers] = useState<ChartPoint[][]>([]);
   const hasTemps = !!nodeData?.temps && nodeData.temps.readings.length > 0;
   const hasPower = nodeData?.power !== undefined;
   const hasSysPower = nodeData?.systemPower !== undefined;
+  const gpuCount = nodeData?.gpus?.length ?? 0;
 
   useEffect(() => {
     if (!siteId || !node) return;
@@ -42,7 +45,11 @@ export default function NodeDetailPage() {
     const tempKey = `${siteId}:node:${node}:temp`;
     const wattKey = `${siteId}:node:${node}:watts`;
     const sysKey = `${siteId}:node:${node}:syswatts`;
-    const keys = [cpuKey, memKey, tempKey, wattKey, sysKey].map(encodeURIComponent).join(',');
+    const gpuTempKeys = Array.from({ length: gpuCount }, (_, i) => `${siteId}:node:${node}:gputemp${i}`);
+    const gpuWattKeys = Array.from({ length: gpuCount }, (_, i) => `${siteId}:node:${node}:gpuwatts${i}`);
+    const keys = [cpuKey, memKey, tempKey, wattKey, sysKey, ...gpuTempKeys, ...gpuWattKeys]
+      .map(encodeURIComponent)
+      .join(',');
     let alive = true;
     const load = async () => {
       try {
@@ -53,6 +60,8 @@ export default function NodeDetailPage() {
         setTemp((r.series[tempKey] ?? []).map((p) => ({ t: p.t, v: p.v })));
         setPower((r.series[wattKey] ?? []).map((p) => ({ t: p.t, v: p.v })));
         setSysPower((r.series[sysKey] ?? []).map((p) => ({ t: p.t, v: p.v })));
+        setGpuTemps(gpuTempKeys.map((k) => (r.series[k] ?? []).map((p) => ({ t: p.t, v: p.v }))));
+        setGpuPowers(gpuWattKeys.map((k) => (r.series[k] ?? []).map((p) => ({ t: p.t, v: p.v }))));
       } catch {
         /* transient */
       }
@@ -63,7 +72,7 @@ export default function NodeDetailPage() {
       alive = false;
       clearInterval(id);
     };
-  }, [siteId, node, range]);
+  }, [siteId, node, range, gpuCount]);
 
   if (!site || !nodeData) {
     return (
@@ -138,6 +147,17 @@ export default function NodeDetailPage() {
               )}
             </div>
           )}
+          {nodeData.gpus && nodeData.gpus.length > 0 && (
+            <div className="node-gpus">
+              {nodeData.gpus.map((g, i) => (
+                <div className="gpu-row" key={`${g.name}-${i}`}>
+                  <span className="gpu-name">{g.name}</span>
+                  {g.temp !== undefined && <TempChip reading={{ label: 'GPU', value: g.temp, kind: 'other' }} />}
+                  {g.power !== undefined && <WattChip watts={g.power} label="GPU" />}
+                </div>
+              ))}
+            </div>
+          )}
           {(hasTemps || hasPower || hasSysPower) && (
             <div className="node-temps">
               {nodeData.temps?.readings.map((r) => (
@@ -189,6 +209,22 @@ export default function NodeDetailPage() {
             <TimeChart label="System" unit=" W" color="#4c8dff" points={sysPower} />
           </div>
         )}
+        {nodeData.gpus?.map((g, i) => (
+          <Fragment key={`gpu-${i}`}>
+            {g.temp !== undefined && (
+              <div className="chart-panel">
+                <div className="chart-title">{g.name} Temperature</div>
+                <TimeChart label="Temp" unit="°" color="#fbbf24" points={gpuTemps[i] ?? []} />
+              </div>
+            )}
+            {g.power !== undefined && (
+              <div className="chart-panel">
+                <div className="chart-title">{g.name} Power</div>
+                <TimeChart label="Power" unit=" W" color="#a78bfa" points={gpuPowers[i] ?? []} />
+              </div>
+            )}
+          </Fragment>
+        ))}
       </div>
 
       <section className="panel detail-guests">

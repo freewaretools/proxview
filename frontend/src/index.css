@@ -705,6 +705,23 @@ a {
   color: var(--text-faint);
   margin-top: 2px;
 }
+.node-gpus {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.gpu-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.gpu-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
 
 /* Guests */
 .node-guests {

@@ -8,9 +8,11 @@ import { buildPbsSnapshot } from './pbs.js';
 import { buildPveSnapshot } from './pve.js';
 import { broadcast } from './sse.js';
 import {
+  getNodeGpus,
   getNodeSystemWatts,
   getNodeTemps,
   getNodeWatts,
+  getSiteGpus,
   getSiteSystemWatts,
   getSiteTemps,
   getSiteWatts,
@@ -73,6 +75,8 @@ async function tick(): Promise<void> {
             if (w) n.power = w; // 0 W = RAPL unavailable — don't publish a misleading reading
             const sw = getNodeSystemWatts(cfg.siteId, n.node);
             if (sw) n.systemPower = sw;
+            const g = getNodeGpus(cfg.siteId, n.node);
+            if (g && g.length) n.gpus = g;
           }
           store(snap);
           recordSnapshot(snap); // persist history (real mode only)
@@ -85,6 +89,8 @@ async function tick(): Promise<void> {
           if (w) snap.power = w; // 0 W = unavailable
           const sw = getSiteSystemWatts(cfg.siteId);
           if (sw) snap.systemPower = sw;
+          const g = getSiteGpus(cfg.siteId);
+          if (g && g.length) snap.gpus = g;
           storePbs(snap);
           recordPbsSnapshot(snap); // persist host history (real mode only)
         }),

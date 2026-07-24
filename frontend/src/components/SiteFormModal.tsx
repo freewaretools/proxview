@@ -164,6 +164,7 @@ export function SiteFormModal({ site, onClose }: Props) {
               siteId={editingId}
               defaultHost={form.sshHost ?? ''}
               defaultPort={form.sshPort ?? ''}
+              hasSshKey={site?.hasSshKey}
               onDone={() => {
                 void load();
                 onClose();

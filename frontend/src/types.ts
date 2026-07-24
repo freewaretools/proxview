@@ -34,6 +34,16 @@ export interface NodeTemps {
   readings: TempReading[];
 }
 
+export interface GpuInfo {
+  name: string;
+  vendor: 'nvidia' | 'amd' | 'intel' | 'other';
+  temp?: number;
+  power?: number;
+  util?: number;
+  memUsed?: number;
+  memTotal?: number;
+}
+
 export interface NodeSummary {
   node: string;
   status: 'online' | 'offline';
@@ -54,6 +64,7 @@ export interface NodeSummary {
   temps?: NodeTemps;
   power?: number;
   systemPower?: number;
+  gpus?: GpuInfo[];
   guests: GuestSummary[];
 }
 
@@ -110,6 +121,7 @@ export interface PbsSnapshot {
   temps?: NodeTemps;
   power?: number;
   systemPower?: number;
+  gpus?: GpuInfo[];
   datastores: PbsDatastore[];
   groups: PbsBackupGroup[];
   gc?: PbsTaskStatus;

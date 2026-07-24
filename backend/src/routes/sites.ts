@@ -152,7 +152,8 @@ export async function registerSites(app: FastifyInstance): Promise<void> {
     const { host, user } = parsed.data;
     const port = parsed.data.port ?? 22;
 
-    const result = await provisionSensors({ host, port, user, password: parsed.data.password });
+    const previousPrivateKey = getSiteSshTarget(id)?.privateKey;
+    const result = await provisionSensors({ host, port, user, password: parsed.data.password, previousPrivateKey });
     // Persist the generated key only if the key was installed successfully.
     if (result.privateKey && result.steps.find((s) => s.name === 'Install SSH key')?.ok) {
       setSiteSsh(id, host, user, port, result.privateKey);

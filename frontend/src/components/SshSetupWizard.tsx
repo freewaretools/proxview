@@ -11,10 +11,11 @@ interface Props {
   siteId: number;
   defaultHost: string;
   defaultPort: string;
+  hasSshKey?: boolean;
   onDone: () => void;
 }
 
-export function SshSetupWizard({ siteId, defaultHost, defaultPort, onDone }: Props) {
+export function SshSetupWizard({ siteId, defaultHost, defaultPort, hasSshKey, onDone }: Props) {
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState(defaultHost);
   const [user, setUser] = useState('root');
@@ -46,17 +47,21 @@ export function SshSetupWizard({ siteId, defaultHost, defaultPort, onDone }: Pro
   if (!open) {
     return (
       <button type="button" className="btn btn-ghost btn-sm wizard-open" onClick={() => setOpen(true)}>
-        ⚡ Auto-setup temperatures over SSH
+        {hasSshKey ? '🔁 Reprovision SSH access' : '⚡ Auto-setup temperatures over SSH'}
       </button>
     );
   }
 
   return (
     <div className="ssh-wizard">
-      <div className="pbs-subhead">Guided temperature setup</div>
+      <div className="pbs-subhead">{hasSshKey ? 'Reprovision SSH access' : 'Guided temperature setup'}</div>
       <p className="ssh-hint">
-        Generates an SSH key, installs it + <code>lm-sensors</code>, and verifies temperatures. The
-        password is used once for this connection and never stored.
+        {hasSshKey
+          ? 'Safe to re-run any time — e.g. after swapping hardware or reinstalling the host. Generates a fresh SSH key, removes the old one, and reinstalls it + '
+          : 'Generates an SSH key, installs it + '}
+        <code>lm-sensors</code>
+        {hasSshKey ? '.' : ', and verifies temperatures.'} The password is used once for this connection and
+        never stored.
       </p>
       <div className="ssh-grid">
         <label className="field">
