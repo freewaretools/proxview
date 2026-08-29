@@ -76,6 +76,9 @@ const MIGRATIONS: string[] = [
   `,
   // v4 — per-channel minimum severity ('info' = receive everything, incl. resolved)
   `ALTER TABLE channels ADD COLUMN min_level TEXT NOT NULL DEFAULT 'info';`,
+  // v5 — pruneOld() filters on ts alone; the (series_key, ts) index can't serve that,
+  // forcing a full table scan on every hourly prune. Index ts directly.
+  `CREATE INDEX idx_ts_ts ON timeseries(ts);`,
 ];
 
 export function initDb(): Database.Database {

@@ -123,5 +123,8 @@ export function recordGpuWatts(siteId: string, node: string, idx: number, watts:
 
 export function pruneOld(): void {
   const cutoff = Math.floor((Date.now() - RETENTION_MS) / 1000);
-  getDb().prepare('DELETE FROM timeseries WHERE ts < ?').run(cutoff);
+  const db = getDb();
+  db.prepare('DELETE FROM timeseries WHERE ts < ?').run(cutoff);
+  // Reclaim the space freed by the delete — otherwise it stays parked in the WAL file.
+  db.pragma('wal_checkpoint(TRUNCATE)');
 }
