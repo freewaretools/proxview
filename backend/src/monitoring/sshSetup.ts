@@ -158,6 +158,13 @@ export function parseTokenOutput(
       }
     }
   }
+  // Last resort for a non-JSON rendering (e.g. a text table): PBS token secrets are UUIDs.
+  if (s >= 0 && e > s) {
+    const uuid = stdout
+      .slice(s, e)
+      .match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+    if (uuid) return { tokenSecret: uuid };
+  }
   const reason = stderr
     .split('\n')
     .map((l) => l.trim())
@@ -214,7 +221,8 @@ export function onboardMachine(input: ProvisionInput): Promise<OnboardResult> {
       'if [ "$KIND" = pbs ]; then',
       '  proxmox-backup-manager user delete-token root@pam proxview >/dev/null 2>&1',
       '  echo "===TOKENSTART==="',
-      '  proxmox-backup-manager user generate-token root@pam proxview --output-format json',
+      // PBS's generate-token rejects --output-format; it prints `Result: {json}` by default.
+      '  proxmox-backup-manager user generate-token root@pam proxview',
       '  echo "===TOKENEND==="',
       "  proxmox-backup-manager acl update / Audit --auth-id 'root@pam!proxview' >/dev/null 2>&1 && echo \"===ACL===\"",
       'fi',
