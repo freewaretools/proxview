@@ -128,6 +128,43 @@ export function unprovisionMachine(target: UnprovisionTarget): Promise<Provision
   });
 }
 
+/**
+ * Pull the minted token out of the onboarding script's stdout. Tolerates stray text around
+ * the JSON (warnings, banners) by taking the outermost {...} between the markers, and
+ * reports the first stderr line when nothing usable came back so the wizard can say why.
+ */
+export function parseTokenOutput(
+  stdout: string,
+  stderr: string,
+): { tokenId?: string; tokenSecret?: string; error?: string } {
+  const s = stdout.indexOf('===TOKENSTART===');
+  const e = stdout.indexOf('===TOKENEND===');
+  if (s >= 0 && e > s) {
+    const body = stdout.slice(s + '===TOKENSTART==='.length, e);
+    const a = body.indexOf('{');
+    const b = body.lastIndexOf('}');
+    if (a >= 0 && b > a) {
+      try {
+        const parsed = JSON.parse(body.slice(a, b + 1)) as {
+          value?: string;
+          'full-tokenid'?: string;
+          tokenid?: string;
+        };
+        if (parsed.value) {
+          return { tokenSecret: parsed.value, tokenId: parsed['full-tokenid'] ?? parsed.tokenid };
+        }
+      } catch {
+        /* fall through to the error path */
+      }
+    }
+  }
+  const reason = stderr
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !/^perl: warning|^\s*LANG|^\s*LC_|locale/i.test(l));
+  return { error: reason?.slice(0, 200) };
+}
+
 export interface OnboardResult {
   ok: boolean;
   steps: ProvisionStep[];
@@ -187,6 +224,7 @@ export function onboardMachine(input: ProvisionInput): Promise<OnboardResult> {
 
     let settled = false;
     let out = '';
+    let errOut = ''; // stderr kept apart so warnings can't corrupt the token JSON
     const conn = new Client();
     const finish = (r: OnboardResult) => {
       if (settled) return;
@@ -233,24 +271,15 @@ export function onboardMachine(input: ProvisionInput): Promise<OnboardResult> {
                 detail: sensorsOk ? 'lm-sensors available' : 'not installed',
               });
 
-              let tokenSecret: string | undefined;
-              let tokenId = 'root@pam!proxview';
-              const s = out.indexOf('===TOKENSTART===');
-              const e = out.indexOf('===TOKENEND===');
-              if (s >= 0 && e > s) {
-                const json = out.slice(s + '===TOKENSTART==='.length, e).trim();
-                try {
-                  const parsed = JSON.parse(json) as { value?: string; 'full-tokenid'?: string; tokenid?: string };
-                  tokenSecret = parsed.value;
-                  tokenId = parsed['full-tokenid'] ?? parsed.tokenid ?? tokenId;
-                } catch {
-                  /* couldn't parse token JSON */
-                }
-              }
+              const minted = parseTokenOutput(out, errOut);
+              const tokenSecret = minted.tokenSecret;
+              const tokenId = minted.tokenId ?? 'root@pam!proxview';
               steps.push({
                 name: 'Create API token',
                 ok: !!tokenSecret,
-                detail: tokenSecret ? tokenId : 'Failed to create token',
+                detail: tokenSecret
+                  ? tokenId
+                  : `Failed to create token${minted.error ? ` — ${minted.error}` : ''}`,
               });
               const aclOk = out.includes('===ACL===');
               steps.push({
@@ -289,7 +318,7 @@ export function onboardMachine(input: ProvisionInput): Promise<OnboardResult> {
               out += d.toString();
             })
             .stderr.on('data', (d: Buffer) => {
-              out += d.toString();
+              errOut += d.toString();
             });
         });
       })
