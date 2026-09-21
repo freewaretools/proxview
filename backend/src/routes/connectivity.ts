@@ -2,7 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getConnectivity, setConnectivity } from '../connectivity/store.js';
 import { applyConnectivity, connectivityStatus } from '../connectivity/manager.js';
-import { parseWireguardConfig, WireguardConfigError } from '../connectivity/wireguard.js';
+import {
+  findLockoutRisk,
+  localNetworkAddresses,
+  parseWireguardConfig,
+  WireguardConfigError,
+} from '../connectivity/wireguard.js';
 
 const cloudflareBody = z.object({
   enabled: z.boolean(),
@@ -75,6 +80,20 @@ export async function registerConnectivity(app: FastifyInstance): Promise<void> 
     }
     if (enabled && !cfg.wireguard.config) {
       return reply.code(400).send({ error: 'config_required' });
+    }
+    if (enabled) {
+      // Guard against a config that would route this very request's reply (or the tunnel's own
+      // packets) into the tunnel. Checked on the config about to be applied — pasted or stored.
+      let risk: string | undefined;
+      try {
+        risk = findLockoutRisk(parseWireguardConfig(cfg.wireguard.config).summary.peers, {
+          clientIp: req.socket.remoteAddress,
+          localAddresses: localNetworkAddresses(),
+        });
+      } catch {
+        /* unparsable stored config: leave it to the manager to report */
+      }
+      if (risk) return reply.code(400).send({ error: 'unsafe_config', message: risk });
     }
     setConnectivity(cfg);
     applyConnectivity();

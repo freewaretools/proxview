@@ -1,4 +1,7 @@
 import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { BlockList, isIP } from 'node:net';
+import { networkInterfaces } from 'node:os';
 
 /**
  * Parse + validate a pasted wg-quick style config (what the WireGuard GUI / `wg-quick`
@@ -133,4 +136,109 @@ export function parseWireguardConfig(text: string): ParsedWireguard {
       peers: peerSummary,
     },
   };
+}
+
+// --- Lockout guard ---------------------------------------------------------
+//
+// Every AllowedIPs range becomes a route inside the container. A range that covers the
+// address you're browsing from sends replies into the tunnel instead of back to you, and
+// the container becomes unreachable (and re-applies the same config on every restart).
+// These checks refuse such a config at save time, with a message that says what to change.
+
+/** Normalise an address: drop an IPv6 zone and unwrap IPv4-mapped IPv6 (::ffff:1.2.3.4). */
+function normalizeIp(ip: string): { ip: string; family: 'ipv4' | 'ipv6' } | undefined {
+  let a = ip.trim().replace(/%.+$/, '');
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(a);
+  if (mapped) a = mapped[1]!;
+  const v = isIP(a);
+  return v ? { ip: a, family: v === 4 ? 'ipv4' : 'ipv6' } : undefined;
+}
+
+function cidrContains(cidr: string, address: string): boolean {
+  const [net, prefixStr] = cidr.split('/');
+  const base = normalizeIp(net ?? '');
+  const target = normalizeIp(address);
+  if (!base || !target || base.family !== target.family) return false;
+  const prefix = Number(prefixStr);
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > (base.family === 'ipv4' ? 32 : 128)) return false;
+  const list = new BlockList();
+  list.addSubnet(base.ip, prefix, base.family);
+  return list.check(target.ip, target.family);
+}
+
+/** ProxView's own addresses + IPv4 default gateway (Linux), which must never be tunnelled. */
+export function localNetworkAddresses(): string[] {
+  const out: string[] = [];
+  for (const [name, addrs] of Object.entries(networkInterfaces())) {
+    if (name.startsWith('pvwg')) continue;
+    for (const a of addrs ?? []) if (!a.internal) out.push(a.address);
+  }
+  try {
+    for (const line of readFileSync('/proc/net/route', 'utf8').split('\n').slice(1)) {
+      const [, dest, gw] = line.trim().split(/\s+/);
+      if (dest === '00000000' && gw && gw !== '00000000') {
+        // Little-endian hex → dotted quad.
+        out.push([6, 4, 2, 0].map((i) => parseInt(gw.slice(i, i + 2), 16)).join('.'));
+      }
+    }
+  } catch {
+    /* not Linux / no /proc — the other checks still apply */
+  }
+  return out;
+}
+
+export interface LockoutContext {
+  /** Remote address of the request being served — where its replies have to go. */
+  clientIp?: string;
+  /** ProxView's own interface addresses and default gateway. */
+  localAddresses?: string[];
+}
+
+/** Returns a human-readable reason this config would cut ProxView off, or undefined if safe. */
+export function findLockoutRisk(
+  peers: WireguardSummary['peers'],
+  ctx: LockoutContext,
+): string | undefined {
+  for (const [i, peer] of peers.entries()) {
+    const label = peers.length > 1 ? `Peer ${i + 1}` : 'The peer';
+    const cidrs = peer.allowedIps.split(',').filter(Boolean);
+
+    if (ctx.clientIp) {
+      const hit = cidrs.find((c) => cidrContains(c, ctx.clientIp!));
+      if (hit) {
+        return (
+          `${label}'s AllowedIPs range ${hit} includes ${normalizeIp(ctx.clientIp)?.ip ?? ctx.clientIp}, ` +
+          `the address you're using to reach ProxView. Connecting would send its replies into the ` +
+          `tunnel and lock you out. List only the subnets of your remote nodes (not your local ` +
+          `network, and not a broad range like 192.168.0.0/16 that covers it).`
+        );
+      }
+    }
+
+    const host = peer.endpoint
+      ? (/^\[([^\]]+)\]:\d+$/.exec(peer.endpoint)?.[1] ?? /^([^:]+):\d+$/.exec(peer.endpoint)?.[1])
+      : undefined;
+    if (host && isIP(host)) {
+      const hit = cidrs.find((c) => cidrContains(c, host));
+      if (hit) {
+        return (
+          `${label}'s Endpoint ${host} is inside its own AllowedIPs range ${hit}, so the tunnel's ` +
+          `packets would be routed back into the tunnel and it could never connect. Narrow AllowedIPs ` +
+          `so it excludes the WireGuard server's address.`
+        );
+      }
+    }
+
+    for (const addr of ctx.localAddresses ?? []) {
+      const hit = cidrs.find((c) => cidrContains(c, addr));
+      if (hit) {
+        return (
+          `${label}'s AllowedIPs range ${hit} covers ${addr}, part of ProxView's own network ` +
+          `(its address or gateway). That would break its connectivity. Narrow AllowedIPs to your ` +
+          `remote subnets.`
+        );
+      }
+    }
+  }
+  return undefined;
 }

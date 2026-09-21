@@ -284,8 +284,9 @@ function WireguardWizard({
       setConfig('');
       onChange();
     } catch (e) {
-      if (e instanceof ApiError && e.message === 'invalid_config') setErr(e.detail ?? 'That config could not be read.');
-      else if (e instanceof ApiError && e.message === 'config_required') setErr('Paste a WireGuard config first.');
+      if (e instanceof ApiError && (e.message === 'invalid_config' || e.message === 'unsafe_config')) {
+        setErr(e.detail ?? 'That config could not be used.');
+      } else if (e instanceof ApiError && e.message === 'config_required') setErr('Paste a WireGuard config first.');
       else setErr('Could not apply — check the config.');
     } finally {
       setBusy(false);

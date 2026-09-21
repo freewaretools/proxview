@@ -226,7 +226,10 @@ Two requirements, because this is a real kernel interface rather than userspace 
 
 Set the peer's `AllowedIPs` to just the subnets your Proxmox nodes are on (e.g.
 `192.168.1.0/24`) — a default route (`0.0.0.0/0`) is rejected, since it would send
-ProxView's own replies down the tunnel. `DNS` is ignored, and `PostUp`/`PreUp`-style hooks are
+ProxView's own replies down the tunnel. For the same reason ProxView refuses to connect a
+config whose `AllowedIPs` cover the address you're browsing from (a broad `192.168.0.0/16`
+while you're on `192.168.10.x`, say), the WireGuard server's own endpoint, or its own
+network/gateway — the error names the offending range. `DNS` is ignored, and `PostUp`/`PreUp`-style hooks are
 rejected (they run commands). The config, including the private key, is stored encrypted.
 
 <details><summary>Advanced: run the tunnels as compose sidecars instead</summary>
