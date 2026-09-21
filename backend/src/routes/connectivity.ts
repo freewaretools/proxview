@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getConnectivity, setConnectivity } from '../connectivity/store.js';
 import { applyConnectivity, connectivityStatus } from '../connectivity/manager.js';
+import { parseWireguardConfig, WireguardConfigError } from '../connectivity/wireguard.js';
 
 const cloudflareBody = z.object({
   enabled: z.boolean(),
@@ -13,6 +14,12 @@ const tailscaleBody = z.object({
   enabled: z.boolean(),
   authKey: z.string().trim().optional(),
   funnel: z.boolean().optional(),
+});
+
+const wireguardBody = z.object({
+  enabled: z.boolean(),
+  // Optional so a user can toggle off/on without re-pasting (the saved config is never sent back).
+  config: z.string().max(20_000).optional(),
 });
 
 export async function registerConnectivity(app: FastifyInstance): Promise<void> {
@@ -43,6 +50,31 @@ export async function registerConnectivity(app: FastifyInstance): Promise<void> 
     if (typeof funnel === 'boolean') cfg.tailscale.funnel = funnel;
     if (enabled && !cfg.tailscale.authKey) {
       return reply.code(400).send({ error: 'authkey_required' });
+    }
+    setConnectivity(cfg);
+    applyConnectivity();
+    return connectivityStatus();
+  });
+
+  app.post('/api/connectivity/wireguard', async (req, reply) => {
+    const parsed = wireguardBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_body' });
+    const { enabled, config } = parsed.data;
+    const cfg = getConnectivity();
+    cfg.wireguard.enabled = enabled;
+    if (config?.trim()) {
+      try {
+        // Store the sanitised form — forbidden/unknown keys never reach disk or wg-quick.
+        cfg.wireguard.config = parseWireguardConfig(config).sanitized;
+      } catch (err) {
+        if (err instanceof WireguardConfigError) {
+          return reply.code(400).send({ error: 'invalid_config', message: err.message });
+        }
+        throw err;
+      }
+    }
+    if (enabled && !cfg.wireguard.config) {
+      return reply.code(400).send({ error: 'config_required' });
     }
     setConnectivity(cfg);
     applyConnectivity();

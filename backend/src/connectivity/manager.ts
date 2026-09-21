@@ -1,12 +1,15 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from '../config/env.js';
 import { getConnectivity } from './store.js';
+import { parseWireguardConfig, type WireguardSummary } from './wireguard.js';
 
 /**
- * Supervises the optional remote-access tunnels (Cloudflare, Tailscale) as
- * child processes of the ProxView container, driven by the encrypted config in
+ * Supervises the optional remote-access tunnels (Cloudflare, Tailscale, WireGuard) in
+ * the ProxView container, driven by the encrypted config in
  * the DB. This is what lets the setup wizards apply a token without the user
  * ever editing .env or running a compose command.
  */
@@ -27,6 +30,10 @@ interface Runner {
 
 const cloudflare: Runner = { proc: null, state: 'off' };
 const tailscale: Runner = { proc: null, state: 'off' };
+const wireguard: { state: ServiceState; detail?: string; hash?: string } = { state: 'off' };
+
+// Short, fixed interface name (Linux caps names at 15 chars).
+const WG_IFACE = 'pvwg0';
 
 const TS_STATE_DIR = join(env.dataDir, 'tailscale');
 const TS_SOCK = join(TS_STATE_DIR, 'tailscaled.sock');
@@ -187,6 +194,93 @@ function tailnetUrl(): string | null {
   }
 }
 
+// --- WireGuard -------------------------------------------------------------
+
+function wgInterfaceUp(): boolean {
+  return spawnSync('wg', ['show', WG_IFACE], { stdio: 'ignore' }).status === 0;
+}
+
+function stopWireguard(): void {
+  if (wgInterfaceUp()) spawnSync('ip', ['link', 'delete', WG_IFACE], { stdio: 'ignore' });
+  wireguard.state = 'off';
+  wireguard.detail = undefined;
+  wireguard.hash = undefined;
+}
+
+/** Turn wg-quick's stderr into something a user can act on. */
+function explainWgFailure(stderr: string): string {
+  if (/operation not permitted|permission denied|rtnetlink/i.test(stderr)) {
+    return 'The container needs the NET_ADMIN capability — recreate it with --cap-add NET_ADMIN (compose: cap_add: [NET_ADMIN]).';
+  }
+  if (/protocol not supported|unknown device type|module/i.test(stderr)) {
+    return "The host kernel doesn't provide WireGuard (needs Linux 5.6+ or the wireguard module).";
+  }
+  const line = stderr
+    .split('\n')
+    .map((l) => l.replace(/^\[#\]\s*/, '').trim())
+    .filter(Boolean)
+    .pop();
+  return (line ?? 'wg-quick failed').slice(0, 240);
+}
+
+function startWireguard(config: string): void {
+  const hash = createHash('sha256').update(config).digest('hex');
+  // Reconcile is called on every settings change — don't bounce a healthy tunnel.
+  if (wireguard.hash === hash && wgInterfaceUp()) return;
+
+  stopWireguard();
+  if (!binaryExists('wg-quick')) {
+    wireguard.state = 'error';
+    wireguard.detail = 'wg-quick not found — update to the latest ProxView image to enable this.';
+    log.error('[connectivity] wg-quick missing');
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parseWireguardConfig(config);
+  } catch (err) {
+    wireguard.state = 'error';
+    wireguard.detail = (err as Error).message;
+    return;
+  }
+
+  // The private key only touches a private temp dir, and only for the instant wg-quick reads it.
+  const dir = mkdtempSync(join(tmpdir(), 'pvwg-'));
+  const file = join(dir, `${WG_IFACE}.conf`);
+  try {
+    writeFileSync(file, parsed.sanitized, { mode: 0o600 });
+    const up = spawnSync('wg-quick', ['up', file], { encoding: 'utf8', timeout: 20_000 });
+    if (up.status !== 0) {
+      wireguard.state = 'error';
+      wireguard.detail = explainWgFailure(`${up.stderr ?? ''}${up.error ? String(up.error) : ''}`);
+      log.error(`[connectivity] wireguard up failed: ${wireguard.detail}`);
+      if (wgInterfaceUp()) spawnSync('ip', ['link', 'delete', WG_IFACE], { stdio: 'ignore' });
+      return;
+    }
+    wireguard.state = 'running';
+    wireguard.detail = undefined;
+    wireguard.hash = hash;
+    log.info('[connectivity] wireguard up');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Seconds since the most recent handshake with any peer, or null if none yet. */
+function wgHandshakeAgeSec(): number | null {
+  const r = spawnSync('wg', ['show', WG_IFACE, 'latest-handshakes'], { encoding: 'utf8' });
+  if (r.status !== 0 || !r.stdout) return null;
+  const latest = Math.max(
+    0,
+    ...r.stdout
+      .trim()
+      .split('\n')
+      .map((l) => Number(l.split(/\s+/)[1]) || 0),
+  );
+  return latest > 0 ? Math.max(0, Math.floor(Date.now() / 1000 - latest)) : null;
+}
+
 // --- Public API ------------------------------------------------------------
 
 /** Reconcile running processes with the persisted config. Safe to call repeatedly. */
@@ -199,6 +293,9 @@ export function applyConnectivity(logger?: Logger): void {
 
   if (cfg.tailscale.enabled && cfg.tailscale.authKey) startTailscale(cfg.tailscale.authKey, cfg.tailscale.funnel);
   else stopTailscale();
+
+  if (cfg.wireguard.enabled && cfg.wireguard.config) startWireguard(cfg.wireguard.config);
+  else stopWireguard();
 }
 
 export interface ConnectivityStatus {
@@ -211,6 +308,24 @@ export interface ConnectivityStatus {
     url?: string;
     detail?: string;
   };
+  wireguard: {
+    enabled: boolean;
+    configured: boolean;
+    state: ServiceState;
+    detail?: string;
+    summary?: WireguardSummary;
+    /** Seconds since the last handshake; null until the first one completes. */
+    handshakeAgeSec?: number | null;
+  };
+}
+
+function wireguardSummary(config: string): WireguardSummary | undefined {
+  if (!config) return undefined;
+  try {
+    return parseWireguardConfig(config).summary;
+  } catch {
+    return undefined;
+  }
 }
 
 export function connectivityStatus(): ConnectivityStatus {
@@ -229,6 +344,14 @@ export function connectivityStatus(): ConnectivityStatus {
       state: tailscale.state,
       url: tailscale.state === 'running' ? tailnetUrl() ?? tailscale.detail : undefined,
       detail: tailscale.detail,
+    },
+    wireguard: {
+      enabled: cfg.wireguard.enabled,
+      configured: Boolean(cfg.wireguard.config),
+      state: wireguard.state,
+      detail: wireguard.detail,
+      summary: wireguardSummary(cfg.wireguard.config),
+      handshakeAgeSec: wireguard.state === 'running' ? wgHandshakeAgeSec() : undefined,
     },
   };
 }

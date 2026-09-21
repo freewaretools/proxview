@@ -79,7 +79,7 @@ Then open `http://localhost:8080`, sign in, and add your sites under **Settings*
 DEMO=1 docker compose up -d --build
 ```
 
-> Prefer not to build locally? A prebuilt multi-arch image is published to
+> Prefer not to build locally? A prebuilt amd64 image (arm64 is temporarily paused) is published to
 > `ghcr.io/freewaretools/proxview:latest` on each tagged release — set that as the `app`
 > service's `image:` in `docker-compose.yml` to pull instead of build.
 
@@ -206,17 +206,32 @@ LAN-only by intent. On a public VPS, prefer the Cloudflare/Tailscale wizards, or
 
 ### Reach nodes across networks (WireGuard)
 
-WireGuard needs kernel-level networking, so it runs as a compose add-on rather than
-in-app. In **Settings → Connectivity**, generate a keypair, fill `wireguard/wg0.conf`
-(see `wireguard/wg0.conf.example`), add the public key as a peer on your WG server, then:
-`docker compose -f docker-compose.yml -f docker-compose.wireguard.yml up -d`
+In **Settings → Remote Access**, export a client config from your WireGuard server / GUI
+(wg-easy, PiVPN, OPNsense, …), **paste it into the WireGuard box** and hit *Save & connect*.
+ProxView brings the tunnel up itself, shows its public key (to add as a peer on your server)
+and the last handshake, and re-establishes it on every restart. No files to edit.
+Don't have a client config yet? *Generate new keypair* drops a ready-to-fill template into
+the box.
+
+Two requirements, because this is a real kernel interface rather than userspace networking:
+
+- the container needs the `NET_ADMIN` capability — `docker run --cap-add NET_ADMIN …`, or
+  `cap_add: [NET_ADMIN]` on the `app` service in compose
+- WireGuard in the host kernel (Linux 5.6+, or the `wireguard` module)
+
+Set the peer's `AllowedIPs` to just the subnets your Proxmox nodes are on (e.g.
+`192.168.1.0/24`) — a default route (`0.0.0.0/0`) is rejected, since it would send
+ProxView's own replies down the tunnel. `DNS` is ignored, and `PostUp`/`PreUp`-style hooks are
+rejected (they run commands). The config, including the private key, is stored encrypted.
 
 <details><summary>Advanced: run the tunnels as compose sidecars instead</summary>
 
 If you'd rather not run the tunnels inside the app container, the classic sidecar files
 are still here: set `CF_TUNNEL_TOKEN` / `TS_AUTHKEY` in `.env` and use
 `docker compose --profile cloudflare up -d` or
-`docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d`.
+`docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d`. WireGuard has a
+sidecar too (`docker-compose.wireguard.yml`, configured via `wireguard/wg0.conf`) — the in-app
+paste-a-config flow above is the easier route.
 </details>
 
 ## Architecture

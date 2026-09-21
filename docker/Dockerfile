@@ -25,10 +25,11 @@ ENV NODE_ENV=production \
 ARG VERSION=dev
 ENV PROXVIEW_VERSION=$VERSION
 # Optional remote-access tunnels, applied in-app by the setup wizards:
-#   tailscale/tailscaled (Alpine community repo) + cloudflared (static binary).
+#   tailscale/tailscaled (Alpine community repo) + cloudflared (static binary)
+#   + wireguard-tools (wg / wg-quick; the tunnel itself needs --cap-add NET_ADMIN).
 # buildkit populates TARGETARCH (amd64 / arm64) for the target platform.
 ARG TARGETARCH
-RUN apk add --no-cache ca-certificates tailscale && \
+RUN apk add --no-cache ca-certificates tailscale wireguard-tools && \
     wget -qO /usr/local/bin/cloudflared \
       "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${TARGETARCH}" && \
     chmod +x /usr/local/bin/cloudflared && \

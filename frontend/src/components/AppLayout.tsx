@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { useLive } from '../store/live';
 import { useUi } from '../store/ui';
@@ -24,6 +24,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const sidebarRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const lastPath = useRef(pathname);
 
   // Auto-collapse when the sidebar is expanded and the user clicks outside it.
   useEffect(() => {
@@ -36,6 +38,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [collapsed, toggleSidebar]);
+
+  // Collapse after navigating (e.g. clicking Settings). Skipped on first render so a
+  // sidebar the user left expanded isn't snapped shut on page load.
+  useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    if (!useUi.getState().sidebarCollapsed) toggleSidebar();
+  }, [pathname, toggleSidebar]);
 
   return (
     <div className="app-shell-side">

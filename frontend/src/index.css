@@ -1229,6 +1229,22 @@ a {
 .ssh-section textarea:focus {
   border-color: var(--accent);
 }
+.conn-textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 10px 12px;
+  outline: none;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.conn-textarea:focus {
+  border-color: var(--accent);
+}
 
 /* --- PBS card ----------------------------------------------------------- */
 .pbs-grid {

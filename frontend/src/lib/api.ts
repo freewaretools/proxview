@@ -1,8 +1,11 @@
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, code: string) {
+  /** Human-readable explanation, when the server sends one alongside the error code. */
+  detail?: string;
+  constructor(status: number, code: string, detail?: string) {
     super(code);
     this.status = status;
+    this.detail = detail;
     this.name = 'ApiError';
   }
 }
@@ -22,7 +25,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    throw new ApiError(res.status, (data && data.error) || res.statusText || 'error');
+    throw new ApiError(res.status, (data && data.error) || res.statusText || 'error', data?.message);
   }
   return data as T;
 }

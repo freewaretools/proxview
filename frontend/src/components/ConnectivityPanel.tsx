@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 
 type ServiceState = 'off' | 'starting' | 'running' | 'error';
 
@@ -12,6 +12,19 @@ interface ConnectivityStatus {
     state: ServiceState;
     url?: string;
     detail?: string;
+  };
+  wireguard: {
+    enabled: boolean;
+    configured: boolean;
+    state: ServiceState;
+    detail?: string;
+    summary?: {
+      address: string;
+      publicKey: string;
+      peers: Array<{ endpoint?: string; allowedIps: string }>;
+    };
+    /** Seconds since the last handshake; null until the first one completes. */
+    handshakeAgeSec?: number | null;
   };
 }
 
@@ -231,19 +244,66 @@ function TailscaleWizard({
   );
 }
 
-function WireguardWizard() {
+const WG_TEMPLATE = (privateKey: string) => `[Interface]
+PrivateKey = ${privateKey}
+Address = 10.13.13.2/32
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+Endpoint = your.server.example.com:51820
+AllowedIPs = 192.168.1.0/24
+PersistentKeepalive = 25
+`;
+
+function formatAge(sec: number): string {
+  if (sec < 90) return `${sec}s ago`;
+  if (sec < 5400) return `${Math.round(sec / 60)}m ago`;
+  return `${Math.round(sec / 3600)}h ago`;
+}
+
+function WireguardWizard({
+  status,
+  onChange,
+}: {
+  status: ConnectivityStatus['wireguard'] | undefined;
+  onChange: () => void;
+}) {
+  const [config, setConfig] = useState('');
   const [keys, setKeys] = useState<{ privateKey: string; publicKey: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
   const [copied, setCopied] = useState('');
+  const state = status?.state ?? 'off';
+  const summary = status?.summary;
 
-  const generate = async () => {
+  const save = async (enabled: boolean) => {
     setBusy(true);
+    setErr('');
     try {
-      setKeys(await api.post<{ privateKey: string; publicKey: string }>('/api/tools/wireguard-keypair'));
+      await api.post('/api/connectivity/wireguard', { enabled, config: config.trim() || undefined });
+      setConfig('');
+      onChange();
+    } catch (e) {
+      if (e instanceof ApiError && e.message === 'invalid_config') setErr(e.detail ?? 'That config could not be read.');
+      else if (e instanceof ApiError && e.message === 'config_required') setErr('Paste a WireGuard config first.');
+      else setErr('Could not apply — check the config.');
     } finally {
       setBusy(false);
     }
   };
+
+  const generate = async () => {
+    setBusy(true);
+    try {
+      const k = await api.post<{ privateKey: string; publicKey: string }>('/api/tools/wireguard-keypair');
+      setKeys(k);
+      // Only seed the box when it's empty — never clobber something the user pasted.
+      setConfig((cur) => (cur.trim() ? cur : WG_TEMPLATE(k.privateKey)));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copy = (label: string, value: string) => {
     void navigator.clipboard?.writeText(value).then(() => {
       setCopied(label);
@@ -255,41 +315,100 @@ function WireguardWizard() {
     <div className="conn-plugin">
       <div className="conn-head">
         <div className="pbs-subhead">WireGuard — private tunnel to your nodes</div>
+        <StatusBadge state={state} />
       </div>
-      <p className="ssh-hint">
-        WireGuard needs kernel-level networking, so it runs as a compose add-on rather than inside
-        ProxView. Generate a keypair, then start the plugin.
-      </p>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={generate} disabled={busy}>
-        {busy ? 'Generating…' : 'Generate WireGuard keypair'}
-      </button>
-      {keys && (
+      <ol className="wizard-list">
+        <li>
+          Create a client in your WireGuard server / GUI (wg-easy, PiVPN, OPNsense, Proxmox SDN…) and
+          export its config file.
+        </li>
+        <li>
+          Set <code>AllowedIPs</code> to just the subnets your Proxmox nodes are on — not{' '}
+          <code>0.0.0.0/0</code>.
+        </li>
+        <li>Paste the whole config here and connect:</li>
+      </ol>
+      <label className="field">
+        <span>WireGuard config</span>
+        <textarea
+          className="conn-textarea"
+          value={config}
+          onChange={(e) => setConfig(e.target.value)}
+          placeholder={
+            status?.configured
+              ? '(saved — paste a new config to replace it)'
+              : '[Interface]\nPrivateKey = …\nAddress = 10.13.13.2/32\n\n[Peer]\nPublicKey = …\nEndpoint = host:51820\nAllowedIPs = 192.168.1.0/24'
+          }
+          rows={9}
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </label>
+      {err && <p className="form-error">{err}</p>}
+      {status?.detail && state === 'error' && <p className="form-error">{status.detail}</p>}
+
+      {summary && (
         <div className="wizard-out">
-          <div className="wizard-label">Private key → wireguard/wg0.conf [Interface]</div>
+          <div className="wizard-label">ProxView's tunnel address</div>
           <div className="copy-field">
-            <code>{keys.privateKey}</code>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => copy('priv', keys.privateKey)}>
-              {copied === 'priv' ? 'Copied' : 'Copy'}
-            </button>
+            <code>{summary.address}</code>
           </div>
-          <div className="wizard-label">Public key → add as a peer on your WireGuard server</div>
+          <div className="wizard-label">ProxView's public key — must be added as a peer on your WireGuard server</div>
           <div className="copy-field">
-            <code>{keys.publicKey}</code>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => copy('pub', keys.publicKey)}>
+            <code>{summary.publicKey}</code>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => copy('pub', summary.publicKey)}>
               {copied === 'pub' ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <div className="wizard-label">Then start the plugin</div>
+          {summary.peers.map((p, i) => (
+            <p key={i} className="ssh-hint">
+              Peer{summary.peers.length > 1 ? ` ${i + 1}` : ''}: <code>{p.endpoint ?? 'no endpoint'}</code> · routes{' '}
+              <code>{p.allowedIps}</code>
+            </p>
+          ))}
+          {state === 'running' && (
+            <p className="ssh-hint">
+              {typeof status?.handshakeAgeSec === 'number'
+                ? `Last handshake ${formatAge(status.handshakeAgeSec)}.`
+                : 'No handshake yet — it completes on the first traffic. Add PersistentKeepalive = 25 to the peer to bring it up right away.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      <p className="ssh-hint">
+        Runs inside ProxView and needs the <code>NET_ADMIN</code> capability (<code>docker run --cap-add NET_ADMIN</code>{' '}
+        or <code>cap_add: [NET_ADMIN]</code> in compose) and WireGuard in the host kernel. <code>DNS</code>,{' '}
+        <code>PostUp</code>-style hooks and default routes aren't supported and are ignored or rejected.
+      </p>
+
+      <div className="conn-actions">
+        <button type="button" className="btn btn-sm" onClick={() => save(true)} disabled={busy}>
+          {busy ? 'Applying…' : status?.enabled ? 'Reconnect' : 'Save & connect'}
+        </button>
+        {status?.enabled && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => save(false)} disabled={busy}>
+            Disconnect
+          </button>
+        )}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={generate} disabled={busy}>
+          Generate new keypair
+        </button>
+      </div>
+
+      {keys && (
+        <div className="wizard-out">
+          <div className="wizard-label">New public key → add as a peer on your WireGuard server</div>
           <div className="copy-field">
-            <code>docker compose -f docker-compose.yml -f docker-compose.wireguard.yml up -d</code>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => copy('cmd', 'docker compose -f docker-compose.yml -f docker-compose.wireguard.yml up -d')}
-            >
-              {copied === 'cmd' ? 'Copied' : 'Copy'}
+            <code>{keys.publicKey}</code>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => copy('newpub', keys.publicKey)}>
+              {copied === 'newpub' ? 'Copied' : 'Copy'}
             </button>
           </div>
+          <p className="ssh-hint">
+            The private key was placed in the config box above (if it was empty). Fill in the server details and
+            connect.
+          </p>
         </div>
       )}
     </div>
@@ -308,12 +427,12 @@ export function ConnectivityPanel() {
       <h2>Remote access &amp; connectivity</h2>
       <p className="ssh-hint">
         Reach ProxView from anywhere, or connect to Proxmox / PBS across networks. Each wizard sends
-        you to the provider to grab a token — paste it back and ProxView applies it for you. No{' '}
-        <code>.env</code> edits, no compose commands.
+        you to the provider to grab a token (or paste a WireGuard config) — ProxView applies it for you.
+        No <code>.env</code> edits, no compose commands.
       </p>
       <CloudflareWizard status={status?.cloudflare} onChange={onChange} />
       <TailscaleWizard status={status?.tailscale} onChange={onChange} />
-      <WireguardWizard />
+      <WireguardWizard status={status?.wireguard} onChange={onChange} />
     </section>
   );
 }

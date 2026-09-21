@@ -1,4 +1,8 @@
-# WireGuard plugin — a private tunnel from ProxView to your Proxmox/PBS nodes.
+# WireGuard SIDECAR (advanced) — a private tunnel from ProxView to your Proxmox/PBS nodes.
+#
+# Most people don't need this: paste a WireGuard client config into Settings -> Remote Access
+# and ProxView runs the tunnel itself (just add `cap_add: [NET_ADMIN]` to the app service).
+# Use this file only if you'd rather keep WireGuard in its own container.
 #
 #   1. Generate ProxView's keypair in Settings → Connectivity (or `wg genkey`), then
 #      copy wireguard/wg0.conf.example -> wireguard/wg0.conf and fill it in.
