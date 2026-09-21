@@ -26,6 +26,10 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"      # where CT templates live
 UNPRIVILEGED="${UNPRIVILEGED:-1}"
 PROXVIEW_IMAGE="${PROXVIEW_IMAGE:-ghcr.io/freewaretools/proxview:latest}"
 PROXVIEW_PORT="${PROXVIEW_PORT:-8080}"
+# Opt-in: grant the container NET_ADMIN so the in-app WireGuard tunnel (Settings -> Remote
+# Access) can create its interface. Off by default — Tailscale/Cloudflare don't need it and
+# most LAN installs never use WireGuard.
+PROXVIEW_WIREGUARD="${PROXVIEW_WIREGUARD:-0}"
 # Same names as the Docker/compose deploy (PROXVIEW_ADMIN_*), with short aliases.
 # Blank password = auto-generate a strong one and print it at the end.
 PROXVIEW_USER="${PROXVIEW_ADMIN_USER:-${PROXVIEW_USER:-admin}}"
@@ -51,6 +55,9 @@ if [ "$NET" != "dhcp" ] && [ -z "$GATEWAY" ]; then
   die "Static NET ($NET) requires GATEWAY=<router ip>."
 fi
 
+WG_CAP=""
+case "$PROXVIEW_WIREGUARD" in 1|true|yes) WG_CAP="--cap-add NET_ADMIN " ;; esac
+
 GENERATED_PW=""
 if [ -z "$PROXVIEW_PASSWORD" ]; then
   PROXVIEW_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)"
@@ -65,6 +72,7 @@ echo "  Resources ..... ${CORES} vCPU · ${RAM_MB} MB RAM · ${DISK_GB} GB disk"
 echo "  Network ....... ${NET} on ${BRIDGE}${GATEWAY:+ (gw $GATEWAY)}"
 echo "  Storage ....... rootfs=${STORAGE} · templates=${TEMPLATE_STORAGE}"
 echo "  Image ......... ${PROXVIEW_IMAGE}"
+echo "  WireGuard ..... $([ -n "$WG_CAP" ] && echo 'enabled (container gets NET_ADMIN)' || echo 'off (set PROXVIEW_WIREGUARD=1 to enable)')"
 echo "  Unprivileged .. $([ "$UNPRIVILEGED" = 1 ] && echo yes || echo no)"
 echo "  Admin ......... ${PROXVIEW_USER} (password $([ -n "$GENERATED_PW" ] && echo auto-generated || echo preset) — shown at the end)"
 echo
@@ -130,13 +138,14 @@ fi
 systemctl enable --now docker >/dev/null 2>&1
 docker rm -f proxview >/dev/null 2>&1 || true
 docker run -d --name proxview --restart unless-stopped \
-  -p __PORT__:8080 -v proxview-data:/data \
+  __CAP__-p __PORT__:8080 -v proxview-data:/data \
   -e PROXVIEW_ADMIN_USER="$(printf %s __USERB64__ | base64 -d)" \
   -e PROXVIEW_ADMIN_PASSWORD="$(printf %s __PASSB64__ | base64 -d)" \
   __IMAGE__ >/dev/null
 EOF
 )
 INNER="${INNER//__PORT__/$PROXVIEW_PORT}"
+INNER="${INNER//__CAP__/$WG_CAP}"
 INNER="${INNER//__IMAGE__/$PROXVIEW_IMAGE}"
 INNER="${INNER//__USERB64__/$USER_B64}"
 INNER="${INNER//__PASSB64__/$PASS_B64}"
@@ -170,6 +179,6 @@ echo "  access & connectivity and use the Cloudflare Tunnel or Tailscale wizard.
 echo
 echo "  Manage:  pct enter ${CTID}   ·   updates:  pct exec ${CTID} -- sh -c \\"
 echo "           'docker pull ${PROXVIEW_IMAGE} && docker rm -f proxview && docker run -d \\"
-echo "            --name proxview --restart unless-stopped -p ${PROXVIEW_PORT}:8080 \\"
+echo "            --name proxview --restart unless-stopped ${WG_CAP}-p ${PROXVIEW_PORT}:8080 \\"
 echo "            -v proxview-data:/data ${PROXVIEW_IMAGE}'"
 echo

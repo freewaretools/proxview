@@ -117,7 +117,11 @@ PROXVIEW_ADMIN_PASSWORD='choose-your-own' \
 The container is **LAN-only** — reach it across networks with the in-app Cloudflare/Tailscale
 wizards. (Tunables: `CTID`, `CT_HOSTNAME`, `CORES`, `RAM_MB`, `DISK_GB`, `BRIDGE`, `NET`,
 `GATEWAY`, `STORAGE`, `PROXVIEW_PORT`, `PROXVIEW_IMAGE`, `PROXVIEW_ADMIN_USER`,
-`PROXVIEW_ADMIN_PASSWORD`.)
+`PROXVIEW_ADMIN_PASSWORD`, `PROXVIEW_WIREGUARD`.)
+
+Planning to use the in-app [WireGuard tunnel](#reach-nodes-across-networks-wireguard)? Add
+`PROXVIEW_WIREGUARD=1` — it starts the container with `--cap-add NET_ADMIN`. It's off by
+default since most LAN installs never need it.
 
 ## Adding a Proxmox VE site
 
@@ -215,8 +219,9 @@ the box.
 
 Two requirements, because this is a real kernel interface rather than userspace networking:
 
-- the container needs the `NET_ADMIN` capability — `docker run --cap-add NET_ADMIN …`, or
-  `cap_add: [NET_ADMIN]` on the `app` service in compose
+- the container needs the `NET_ADMIN` capability — `docker run --cap-add NET_ADMIN …`,
+  `cap_add: [NET_ADMIN]` on the `app` service in compose, or `PROXVIEW_WIREGUARD=1` with the
+  Proxmox LXC script
 - WireGuard in the host kernel (Linux 5.6+, or the `wireguard` module)
 
 Set the peer's `AllowedIPs` to just the subnets your Proxmox nodes are on (e.g.
